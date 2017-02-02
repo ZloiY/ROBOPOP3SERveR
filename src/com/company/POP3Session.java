@@ -58,6 +58,26 @@ public class POP3Session implements POP3Defines {
         return nResponseType;
     }
 
+    private int processSession (String buf){
+        switch (buf){
+            case "USER": return processUSER(buf);
+            case "PASS": return processPASS(buf);
+            case "QUIT": return processQUIT(buf);
+            case "STAT": return processSTAT(buf);
+            case "LIST": return processLIST(buf);
+            case "RETR": return processRETR(buf);
+            case "DELE": return processDELE(buf);
+            case "NOOP": return processNOOP(buf);
+            case "LAST": return processLAST(buf);
+            case "RSET": return processRSET(buf);
+            case "RPOP": return processRPOP(buf);
+            case "TOP": return processTOP(buf);
+            default:
+                System.out.println("Fucking russian hackers");
+        }
+        return sendRespones(POP3_DEFAULT_NEGATIVE_RESPONSE, "");
+    }
+
     private int processUSER(String buf){
         System.out.println("ProcessUSER\n");
         m_szUserName = buf;
@@ -71,7 +91,7 @@ public class POP3Session implements POP3Defines {
         return sendRespones(POP3_DEFAULT_AFFERMATIVE_RESPONSE,"");
     }
 
-    private int processPass(String buf){
+    private int processPASS(String buf){
         System.out.println("ProcessPASS\n");
         m_szPassword = buf;
         if(m_nState!=POP3_STATE_AUTHORIZATION || m_szUserName.length()<1) return sendRespones(POP3_DEFAULT_NEGATIVE_RESPONSE,"");
