@@ -15,16 +15,18 @@ public class POP3Message implements POP3Defines{
         m_dwSize = nSize;
         m_szMessagePath = szMessagepath;
     }
-    public void SetParams(int nStatus, int nSize, String szMessagePath){
+    public void setParams(int nStatus, int nSize, String szMessagePath){
         m_nStatus = nStatus;
         m_dwSize = nSize;
         m_szMessagePath = szMessagePath;
     }
-    public void SetParams(POP3Message message){
+    public void setParams(POP3Message message){
         m_nStatus = message.getStatus();
         m_dwSize = message.getSize();
         m_szMessagePath = message.getPath();
     }
+    public void delete(){m_nStatus|=POP3_MSG_STATUS_DELETED;}
+    public void reset(){m_nStatus&= ~POP3_MSG_STATUS_DELETED;}
     public int getStatus(){return m_nStatus;}
     public int getSize(){return m_dwSize;}
     public String getPath(){return m_szMessagePath;}
