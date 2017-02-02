@@ -28,7 +28,7 @@ public class POP3Session implements POP3Defines {
         m_nLastMsg = 0;
     }
 
-    private int sendResponse(String buf) {
+    public int sendResponse(String buf) {
         System.out.println("Direct Sending: " + buf);
         try {
             m_socConnection.getOutputStream().write(buf.getBytes());
@@ -38,7 +38,7 @@ public class POP3Session implements POP3Defines {
         return 0;
     }
 
-    private int sendResponse(int nResponseType, @Nullable String message) {
+    public int sendResponse(int nResponseType, @Nullable String message) {
         String buf = "";
         switch (nResponseType) {
             case POP3_DEFAULT_AFFIRMATIVE_RESPONSE:
@@ -72,7 +72,11 @@ public class POP3Session implements POP3Defines {
         return nResponseType;
     }
 
-    private int sendResponse(int nResponseType) {
+    public Socket getM_socConnection() {
+        return m_socConnection;
+    }
+
+    public int sendResponse(int nResponseType) {
         return sendResponse(nResponseType, null);
     }
 
@@ -83,7 +87,7 @@ public class POP3Session implements POP3Defines {
         else return "";
     }
 
-    private int processSession(String buf) {
+    public int processSession(String buf) {
         String cmd = buf.substring(0, 4);
         switch (cmd) {
             case "USER":
