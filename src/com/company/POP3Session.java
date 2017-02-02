@@ -56,9 +56,6 @@ public class POP3Session implements POP3Defines {
                 buf = "+OK " + APP_TITLE + " " + APP_VERSION + " POP3 Server ready on\r\n";
                 break;
 
-            case POP3_STAT_RESPONSE:
-                buf = "+OK " + m_nTotalMailCount + " " + m_dwTotalMailSize + "\r\n";
-                break;
             default:
                 throw new RuntimeException("Invalid response type.");
         }
@@ -104,17 +101,13 @@ public class POP3Session implements POP3Defines {
             case "DELE":
                 return processDELE(buf);
             case "NOOP":
-                return processNOOP(buf);
+                return processNOOP();
             case "LAST":
-                return processLAST(buf);
+                return processLAST();
             case "RSET":
-                return processRSET(buf);
-            case "RPOP":
-                return processRPOP(buf);
+                return processRSET();
             default:
-                if (buf.substring(0, 3).equals("TOP"))
-                    return processTOP(buf);
-                else System.out.println("Goddamned russian hackers");
+                System.out.println("Goddamned russian hackers");
         }
         return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
     }
@@ -166,13 +159,13 @@ public class POP3Session implements POP3Defines {
         if (m_nState != POP3_STATE_TRANSACTION)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
         m_nLastMsg = 1;
-        return sendResponse(POP3_STAT_RESPONSE);
+        return sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE, String.valueOf(m_nTotalMailCount) + " " + String.valueOf(m_dwTotalMailSize));
     }
 
     private int processLIST(String buf) {
         int msgId = 0;
         String arguments = getArguments(buf);
-        if (!arguments.equals("")) {
+        if (arguments != null) {
             try {
                 msgId = Integer.valueOf(arguments);
             } catch (NumberFormatException e) {
@@ -207,7 +200,7 @@ public class POP3Session implements POP3Defines {
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
         int msgId = 0;
         String arguments = getArguments(buf);
-        if (!arguments.equals("")) {
+        if (arguments != null) {
             try {
                 msgId = Integer.valueOf(arguments);
             } catch (NumberFormatException e) {
@@ -222,47 +215,52 @@ public class POP3Session implements POP3Defines {
         if (message.getStatus() == POP3Defines.POP3_MSG_STATUS_DELETED)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "This message has been deleted");
         sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE, String.valueOf(message.getSize()) + " octets");
-        //sendMessageFile(m_pPop3MessageList.get(msgId-1).getPath());
-        sendResponse(".\r\n");
+        sendMessageFile(message.getPath());
+        sendResponse("\r\n.\r\n");
+        if (msgId > m_nLastMsg)
+            m_nLastMsg = msgId;
         return 0;
     }
 
     private int processDELE(String buf) {
-        int msgId = buf.hashCode();
+        int msgId = 0;
+        String arguments = getArguments(buf);
+        if (arguments != null) {
+            try {
+                msgId = Integer.valueOf(arguments);
+            } catch (NumberFormatException e) {
+                e.printStackTrace();
+            }
+        } else
+            return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "No arguments");
         System.out.println("ProcessDELE " + msgId + "\n");
         if (m_nState != POP3_STATE_TRANSACTION || msgId > m_nTotalMailCount)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
         m_pPop3MessageList.get(msgId - 1).delete();
+        if (msgId > m_nLastMsg)
+            m_nLastMsg = msgId;
         return sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE);
     }
 
-    private int processNOOP(String buf) {
+    private int processNOOP() {
         System.out.println("ProcessNOOP");
-        return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
+        return sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE);
     }
 
-    private int processLAST(String buf) {
-        if (m_nState != POP3_STATE_TRANSACTION) return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
+    private int processLAST() {
+        if (m_nState != POP3_STATE_TRANSACTION)
+            return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
         System.out.println("ProcessLAST\n");
-        String resp = "+OK " + m_nLastMsg + "\r\n";
-        return sendResponse(resp);
+        return sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE, String.valueOf(m_nLastMsg));
     }
 
-    private int processRSET(String buf) {
+    private int processRSET() {
         System.out.println("ProcessRSET");
-        if (m_nState != POP3_STATE_TRANSACTION) return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
-        for (int i = 0; i < m_pPop3MessageList.size(); i++) m_pPop3MessageList.get(i).reset();
-        return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
-    }
-
-    private int processRPOP(String buf) {
-        System.out.println("ProcessRPOP\n");
-        return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
-    }
-
-    private int processTOP(String buf) {
-        System.out.println("ProcessTOP");
-        return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
+        if (m_nState != POP3_STATE_TRANSACTION)
+            return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
+        m_pPop3MessageList.forEach(POP3Message::reset);
+        m_nLastMsg = 0;
+        return sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE);
     }
 
     private boolean login(String userName, String userPassword) {
@@ -271,9 +269,7 @@ public class POP3Session implements POP3Defines {
         String passPath = USERS_DOMAIN + File.pathSeparator + userName + File.pathSeparator + PASS_FILE;
         File passFile = new File(passPath);
         System.out.println("Pwd file: " + passPath + "\n");
-        try {
-            BufferedReader reader;
-            reader = new BufferedReader(new FileReader(passFile));
+        try (BufferedReader reader = new BufferedReader(new FileReader(passFile))) {
             String filePassword = "";
             int c;
             while ((c = reader.read()) != -1)
@@ -297,17 +293,26 @@ public class POP3Session implements POP3Defines {
     private void updateMails() {
         System.out.println("Updating mails\n");
         if (m_nState != POP3_STATE_UPDATE) {
-            System.out.println("Called update but state is nt POP3_STATE_UPDATE (" + POP3_STATE_UPDATE + ")\n");
+            System.out.println("Called update but state is not POP3_STATE_UPDATE (" + POP3_STATE_UPDATE + ")\n");
             return;
         }
-        for (int i = 0; i < m_pPop3MessageList.size(); i++)
-            if (m_pPop3MessageList.get(i).getStatus() > 0) {
-                System.out.println("Delete file " + m_pPop3MessageList.get(i).getPath() + "\n");
-                boolean del = new File(m_pPop3MessageList.get(i).getPath()).delete();
-            }
+        for (POP3Message message : m_pPop3MessageList){
+            if (message.getStatus() == POP3_MSG_STATUS_DELETED)
+                new File(message.getPath()).delete();
+        }
     }
 
     private int sendMessageFile(String szFilePath) {
+        File contentFile = new File(szFilePath);
+        try (BufferedReader reader = new BufferedReader(new FileReader(contentFile))) {
+            String content = "";
+            int c;
+            while ((c = reader.read()) != -1)
+                content += ((char) c) == '\n' ? "\r\n" : (char) c;
+            getM_socConnection().getOutputStream().write(content.getBytes());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         return 0;
     }
 
