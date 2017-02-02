@@ -2,8 +2,7 @@ package com.company;
 
 import com.sun.istack.internal.Nullable;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
@@ -84,7 +83,7 @@ public class POP3Session implements POP3Defines {
         int spaceId = buf.indexOf(' ');
         if (spaceId > 0 && spaceId < 5)
             return buf.substring(spaceId + 1, buf.length() - 2);
-        else return "";
+        else return null;
     }
 
     public int processSession(String buf) {
@@ -125,16 +124,16 @@ public class POP3Session implements POP3Defines {
         if (m_nState != POP3_STATE_AUTHORIZATION)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
         String arguments = getArguments(buf);
-        if (arguments.equals(""))
+        if (arguments == null)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "You should specify the username");
         m_szUserName = arguments;
         File connectingUserHome = new File(USERS_DOMAIN + File.pathSeparator + m_szUserName);
         //System.out.println(m_szUserHome);
         if (!connectingUserHome.exists()) {
-            System.out.println("User " + m_szUserName + " 's Home '" + connectingUserHome + "' not found\n");
+            System.out.println("User " + m_szUserName + " 's Home '" + connectingUserHome.getAbsolutePath() + "' not found\n");
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "Wrong username");
         }
-        System.out.println("OK User " + m_szUserHome + " Home " + connectingUserHome + "\n");
+        System.out.println("OK User " + m_szUserHome + " Home " + connectingUserHome.getAbsolutePath() + "\n");
         return sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE);
     }
 
@@ -145,7 +144,7 @@ public class POP3Session implements POP3Defines {
         if (m_szUserName.length() < 1)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "You did not introduce yourself");
         String arguments = getArguments(buf);
-        if (arguments.equals(""))
+        if (arguments == null)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "You should specify a password");
         m_szPassword = arguments;
         if (login(m_szUserName, m_szPassword))
@@ -272,12 +271,25 @@ public class POP3Session implements POP3Defines {
         String passPath = USERS_DOMAIN + File.pathSeparator + userName + File.pathSeparator + PASS_FILE;
         File passFile = new File(passPath);
         System.out.println("Pwd file: " + passPath + "\n");
-        if (passFile.exists()) {
-            System.out.println("Password ok\n");
-            m_nState = POP3_STATE_TRANSACTION;
-            m_szUserHome = new File(USERS_DOMAIN + File.pathSeparator + m_szUserName);
-            //LockMailDrop();
-            return true;
+        try {
+            BufferedReader reader;
+            reader = new BufferedReader(new FileReader(passFile));
+            String filePassword = "";
+            int c;
+            while ((c = reader.read()) != -1)
+                filePassword += (char) c;
+            if (filePassword.equals(userPassword)) {
+                System.out.println("Password ok\n");
+                m_nState = POP3_STATE_TRANSACTION;
+                m_szUserHome = new File(USERS_DOMAIN + File.pathSeparator + m_szUserName);
+                //LockMailDrop();
+                return true;
+            }
+        } catch (FileNotFoundException e) {
+            System.out.println("Password file is missing!");
+            return false;
+        } catch (IOException e) {
+            e.printStackTrace();
         }
         return false;
     }
