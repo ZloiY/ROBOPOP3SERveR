@@ -20,18 +20,16 @@ public class ConnectionThread extends Thread implements POP3Defines {
         session.sendResponse(POP3_WELCOME_RESPONSE);
         System.out.println("thread start");
         try {
-            while (clientSock.getInputStream().available() != 0) {
+            while (true/*clientSock.getInputStream().available() != 0*/) {
                 System.out.println("while");
                 BufferedInputStream stream = new BufferedInputStream(clientSock.getInputStream());
                 String msg = "";
                 int c;
                 int lastC = 0;
                 while ((c = stream.read()) != 13 && lastC != 10) {
-                    System.out.println((char)c);
                     msg += (char) c;
                     lastC = c;
                 }
-                System.out.println("hello");
                 System.out.println(msg.length() == 0 ? "empty" : msg);
                 if (-1 == session.processSession(msg)) {
                     System.out.println("Connection thread closing...\n");
