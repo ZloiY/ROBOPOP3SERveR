@@ -30,11 +30,11 @@ public class POP3Message implements POP3Defines {
     }
 
     public void delete() {
-        m_nStatus |= POP3_MSG_STATUS_DELETED;
+        m_nStatus = POP3_MSG_STATUS_DELETED;
     }
 
     public void reset() {
-        m_nStatus &= ~POP3_MSG_STATUS_DELETED;
+        m_nStatus = POP3_MSG_STATUS_INITIAL;
     }
 
     public int getStatus() {
