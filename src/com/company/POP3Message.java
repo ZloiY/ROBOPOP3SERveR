@@ -1,51 +1,53 @@
 package com.company;
 
+import java.io.File;
+
 /**
  * Created by ZloiY on 01-Feb-17.
  */
 public class POP3Message implements POP3Defines {
-    private String m_szMessagePath;
-    private int m_nStatus;
-    private int m_dwSize;
+    private File messageFile;
+    private int status;
+    private long size;
 
     public POP3Message() {
     }
 
-    public POP3Message(int nStatus, int nSize, String szMessagePath) {
-        m_nStatus = nStatus;
-        m_dwSize = nSize;
-        m_szMessagePath = szMessagePath;
+    public POP3Message(int nStatus, long nSize, File messageFile) {
+        status = nStatus;
+        size = nSize;
+        this.messageFile = messageFile;
     }
 
-    public void setParams(int nStatus, int nSize, String szMessagePath) {
-        m_nStatus = nStatus;
-        m_dwSize = nSize;
-        m_szMessagePath = szMessagePath;
+    public void setParams(int nStatus, long nSize, File messageFile) {
+        status = nStatus;
+        size = nSize;
+        this.messageFile = messageFile;
     }
 
     public void setParams(POP3Message message) {
-        m_nStatus = message.getStatus();
-        m_dwSize = message.getSize();
-        m_szMessagePath = message.getPath();
+        status = message.getStatus();
+        size = message.getSize();
+        this.messageFile = message.getFile();
     }
 
     public void delete() {
-        m_nStatus = POP3_MSG_STATUS_DELETED;
+        status = POP3_MSG_STATUS_DELETED;
     }
 
     public void reset() {
-        m_nStatus = POP3_MSG_STATUS_INITIAL;
+        status = POP3_MSG_STATUS_INITIAL;
     }
 
     public int getStatus() {
-        return m_nStatus;
+        return status;
     }
 
-    public int getSize() {
-        return m_dwSize;
+    public long getSize() {
+        return size;
     }
 
-    public String getPath() {
-        return m_szMessagePath;
+    public File getFile() {
+        return messageFile;
     }
 }

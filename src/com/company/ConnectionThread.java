@@ -17,8 +17,8 @@ public class ConnectionThread implements Runnable, POP3Defines {
         POP3Session session = new POP3Session(clientSock);
         session.sendResponse(POP3_WELCOME_RESPONSE);
         try {
-            while (session.getM_socConnection().getInputStream().available() != 0){
-                if(-1==session.processSession(session.getM_socConnection().getInputStream().toString())){
+            while (session.getSocConnection().getInputStream().available() != 0){
+                if(-1==session.processSession(session.getSocConnection().getInputStream().toString())){
                     System.out.println("Connection thread closing...\n");
                     return;
                 }

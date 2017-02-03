@@ -22,5 +22,5 @@ public interface POP3Defines {
     String APP_VERSION = "1.0";
 
     String USERS_DOMAIN = File.pathSeparator + "Users";
-    String PASS_FILE = "pass.txt";
+    String PASS_FILE = "pass.pwd";
 }
