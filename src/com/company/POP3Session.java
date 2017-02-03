@@ -107,7 +107,7 @@ public class POP3Session implements POP3Defines {
             case "RSET":
                 return processRSET();
             default:
-                System.out.println("Goddamned russian hackers");
+                System.out.println("God damned russian hackers");
         }
         return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
     }
