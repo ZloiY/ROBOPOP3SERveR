@@ -1,6 +1,7 @@
 package com.company;
 
 import com.sun.istack.internal.Nullable;
+import jdk.nashorn.internal.runtime.regexp.joni.Regex;
 
 import java.io.*;
 import java.net.Socket;
@@ -11,6 +12,8 @@ import java.util.List;
  * Created by ZloiY on 01-Feb-17.
  */
 public class POP3Session implements POP3Defines {
+    private static final String SPLITTER = " ";
+
     private int state;
     private int lastMsg;
     private File userHome;
@@ -78,9 +81,9 @@ public class POP3Session implements POP3Defines {
     }
 
     private String getArguments(String buf) {
-        int spaceId = buf.indexOf(' ');
-        if (spaceId > 0 && spaceId < 5)
-            return buf.substring(spaceId + 1, buf.length());
+        String[] parts = buf.split(SPLITTER);
+        if (parts.length > 1)
+            return parts[1].substring(0, parts[1].length());
         else return null;
     }
 
@@ -108,7 +111,9 @@ public class POP3Session implements POP3Defines {
             case "RSET":
                 return processRSET();
             default:
-                System.out.println("God damned russian hackers: " + buf);
+                if (buf.substring(0, 3).equals("TOP"))
+                    return processTOP(buf);
+                else System.out.println("God damned russian hackers: " + buf);
         }
         return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
     }
@@ -265,28 +270,49 @@ public class POP3Session implements POP3Defines {
     }
 
     private int processTOP(String buf) {
-        int spaceId = buf.indexOf(' ');
-        String[] parts = buf.split(" ");
+        System.out.println("ProcessTOP");
+        if (state != POP3_STATE_TRANSACTION)
+            return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
+        String[] parts = buf.split(SPLITTER);
         int msgId = Integer.valueOf(parts[1]);
         int lineNumber = Integer.valueOf(parts[2]);
-        POP3Message message = pop3MessageList.get(msgId);
+        POP3Message message = pop3MessageList.get(msgId - 1);
+        if (message.getStatus() == POP3_MSG_STATUS_DELETED)
+            return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "This message has been deleted");
         String header = "";
+        List<String> lines = new ArrayList<>();
         try (BufferedReader reader = new BufferedReader(new FileReader(message.getFile()))) {
             int c, lastC = 0;
             boolean crlf = false;
             while ((c = reader.read()) != -1) {
-                header += (char) c;
+                header += ((char) c) == '\n' ? "\r\n" : (char) c;
                 if (c == '\r' && crlf) {
+                    reader.read();
                     break;
                 }
                 crlf = (lastC == '\r' && c == '\n');
+                lastC = c;
+            }
+            lastC = 0;
+            for (int lineId = 0; lineId < lineNumber; lineId++) {
+                String line = "";
+                while ((c = reader.read()) != -1 || (lastC == '\r' && c == '\n')) {
+                    line += ((char) c) == '\n' ? "\r\n" : (char) c;
+                    lastC = c;
+                }
+                lines.add(line);
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
-        if (spaceId > 0 && spaceId < 5)
-            return buf.substring(spaceId + 1, buf.length());
-        else ;
+        sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE);
+        sendResponse(header);
+        sendResponse("\r\n");
+        for (String line : lines) {
+            sendResponse(line);
+        }
+        sendResponse("\r\n.\r\n");
+        return POP3_DEFAULT_AFFIRMATIVE_RESPONSE;
     }
 
     private boolean login(String userName, String userPassword) {
