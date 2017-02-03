@@ -124,7 +124,7 @@ public class POP3Session implements POP3Defines {
         File connectingUserHome = new File(USERS_DOMAIN + File.separator + userName);
         //System.out.println(userHome);
         if (!connectingUserHome.exists()) {
-            System.out.println("User " + userName + " 's Home '" + connectingUserHome.getAbsolutePath() + "' not found\n");
+            System.out.println("User " + userName + "'s Home '" + connectingUserHome.getAbsolutePath() + "' not found\n");
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "Wrong username");
         }
         System.out.println("OK User " + userName + " Home " + connectingUserHome.getAbsolutePath() + "\n");
@@ -264,6 +264,31 @@ public class POP3Session implements POP3Defines {
         return sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE);
     }
 
+    private int processTOP(String buf) {
+        int spaceId = buf.indexOf(' ');
+        String[] parts = buf.split(" ");
+        int msgId = Integer.valueOf(parts[1]);
+        int lineNumber = Integer.valueOf(parts[2]);
+        POP3Message message = pop3MessageList.get(msgId);
+        String header = "";
+        try (BufferedReader reader = new BufferedReader(new FileReader(message.getFile()))) {
+            int c, lastC = 0;
+            boolean crlf = false;
+            while ((c = reader.read()) != -1) {
+                header += (char) c;
+                if (c == '\r' && crlf) {
+                    break;
+                }
+                crlf = (lastC == '\r' && c == '\n');
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        if (spaceId > 0 && spaceId < 5)
+            return buf.substring(spaceId + 1, buf.length());
+        else ;
+    }
+
     private boolean login(String userName, String userPassword) {
         System.out.println("Login: ");
         System.out.println("user= [" + this.userName + "] password = [" + password + "]\n");
@@ -326,9 +351,9 @@ public class POP3Session implements POP3Defines {
             for (File file : files) {
                 String fileName = file.getName();
                 String fileExt = fileName.substring(fileName.length() - 3, fileName.length());
-                if (file.isFile() && fileExt.equals("txt")){
-                    pop3MessageList.add(new POP3Message(POP3_MSG_STATUS_INITIAL, file.getTotalSpace(), file));
-                    totalMailSize += file.getTotalSpace();
+                if (file.isFile() && fileExt.equals("txt")) {
+                    pop3MessageList.add(new POP3Message(POP3_MSG_STATUS_INITIAL, file.length(), file));
+                    totalMailSize += file.length();
                 }
             }
         else System.out.println("No messages in " + userHome.getPath());
