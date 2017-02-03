@@ -80,7 +80,7 @@ public class POP3Session implements POP3Defines {
     private String getArguments(String buf) {
         int spaceId = buf.indexOf(' ');
         if (spaceId > 0 && spaceId < 5)
-            return buf.substring(spaceId + 1, buf.length() - 2);
+            return buf.substring(spaceId + 1, buf.length());
         else return null;
     }
 
@@ -108,7 +108,7 @@ public class POP3Session implements POP3Defines {
             case "RSET":
                 return processRSET();
             default:
-                System.out.println("God damned russian hackers");
+                System.out.println("God damned russian hackers: " + buf);
         }
         return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
     }
@@ -121,13 +121,13 @@ public class POP3Session implements POP3Defines {
         if (arguments == null)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "You should specify the username");
         userName = arguments;
-        File connectingUserHome = new File(USERS_DOMAIN + File.pathSeparator + userName);
+        File connectingUserHome = new File(USERS_DOMAIN + File.separator + userName);
         //System.out.println(userHome);
         if (!connectingUserHome.exists()) {
             System.out.println("User " + userName + " 's Home '" + connectingUserHome.getAbsolutePath() + "' not found\n");
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "Wrong username");
         }
-        System.out.println("OK User " + userHome + " Home " + connectingUserHome.getAbsolutePath() + "\n");
+        System.out.println("OK User " + userName + " Home " + connectingUserHome.getAbsolutePath() + "\n");
         return sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE);
     }
 
@@ -267,7 +267,7 @@ public class POP3Session implements POP3Defines {
     private boolean login(String userName, String userPassword) {
         System.out.println("Login: ");
         System.out.println("user= [" + this.userName + "] password = [" + password + "]\n");
-        String passPath = USERS_DOMAIN + File.pathSeparator + userName + File.pathSeparator + PASS_FILE;
+        String passPath = USERS_DOMAIN + File.separator + userName + File.separator + PASS_FILE;
         File passFile = new File(passPath);
         System.out.println("Pwd file: " + passPath + "\n");
         try (BufferedReader reader = new BufferedReader(new FileReader(passFile))) {
@@ -278,7 +278,7 @@ public class POP3Session implements POP3Defines {
             if (filePassword.equals(userPassword)) {
                 System.out.println("Password ok\n");
                 state = POP3_STATE_TRANSACTION;
-                userHome = new File(USERS_DOMAIN + File.pathSeparator + this.userName);
+                userHome = new File(USERS_DOMAIN + File.separator + this.userName);
                 lockMailDrop();
                 return true;
             }

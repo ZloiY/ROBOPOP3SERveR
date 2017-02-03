@@ -1,33 +1,46 @@
 package com.company;
 
+import java.io.BufferedInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.Socket;
 
 /**
  * Created by ZloiY on 02-Feb-17.
  */
-public class ConnectionThread implements Runnable, POP3Defines {
-    private Thread thread;
+public class ConnectionThread extends Thread implements POP3Defines {
     private Socket clientSock;
-    ConnectionThread(Socket clientSocket){
-        thread = new Thread();
+
+    ConnectionThread(Socket clientSocket) {
         clientSock = clientSocket;
     }
-    public void run(){
+
+    public void run() {
         POP3Session session = new POP3Session(clientSock);
         session.sendResponse(POP3_WELCOME_RESPONSE);
+        System.out.println("thread start");
         try {
-            while (session.getSocConnection().getInputStream().available() != 0){
-                if(-1==session.processSession(session.getSocConnection().getInputStream().toString())){
+            while (clientSock.getInputStream().available() != 0) {
+                System.out.println("while");
+                BufferedInputStream stream = new BufferedInputStream(clientSock.getInputStream());
+                String msg = "";
+                int c;
+                int lastC = 0;
+                while ((c = stream.read()) != 13 && lastC != 10) {
+                    System.out.println((char)c);
+                    msg += (char) c;
+                    lastC = c;
+                }
+                System.out.println("hello");
+                System.out.println(msg.length() == 0 ? "empty" : msg);
+                if (-1 == session.processSession(msg)) {
                     System.out.println("Connection thread closing...\n");
                     return;
                 }
             }
-        }catch (IOException e){
+        } catch (IOException e) {
             e.printStackTrace();
         }
         return;
     }
-
-    public Thread getThread(){return thread;}
 }

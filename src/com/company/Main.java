@@ -15,6 +15,8 @@ public class Main implements POP3Defines{
             ServerSocket serverSocket = new ServerSocket(POP3_PORT);
             System.out.println("Server is online and waiting new clients.\n");
             acceptConnection(serverSocket);
+            serverSocket.close();
+            System.out.println("whap");
         }catch (IOException e){
             e.printStackTrace();
         }
@@ -24,9 +26,10 @@ public class Main implements POP3Defines{
             try {
                 while (true) {
                     Socket socket = serverSocket.accept();
+                    System.out.println("Connection Thread");
                     ConnectionThread connectionThread = new ConnectionThread(socket);
-                    if (connectionThread.getThread()==null) return;
-                    connectionThread.getThread().start();
+                    if (connectionThread==null) return;
+                    connectionThread.start();
                 }
             } catch (IOException e) {
                 e.printStackTrace();
