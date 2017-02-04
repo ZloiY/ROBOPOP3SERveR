@@ -10,13 +10,12 @@ public class Main implements POP3Defines{
     static String address = "127.0.0.1";
     public static void main(String[] args) {
         try {
-            //InetAddress ipAdress = InetAddress.getByName(address);для smtp
+            //InetAddress ipAdress = InetAddress.getByName(address);
             //Socket socket = new Socket(ipAdress, POP3_PORT);
             ServerSocket serverSocket = new ServerSocket(POP3_PORT);
             System.out.println("Server is online and waiting new clients.\n");
             acceptConnection(serverSocket);
             serverSocket.close();
-            System.out.println("whap");
         }catch (IOException e){
             e.printStackTrace();
         }
@@ -28,7 +27,6 @@ public class Main implements POP3Defines{
                     Socket socket = serverSocket.accept();
                     System.out.println("Connection Thread");
                     ConnectionThread connectionThread = new ConnectionThread(socket);
-                    if (connectionThread==null) return;
                     connectionThread.start();
                 }
             } catch (IOException e) {

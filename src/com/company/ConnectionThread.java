@@ -33,6 +33,7 @@ public class ConnectionThread extends Thread implements POP3Defines {
                 System.out.println(msg.length() == 0 ? "empty" : msg);
                 if (-1 == session.processSession(msg)) {
                     System.out.println("Connection thread closing...\n");
+                    clientSock.close();
                     return;
                 }
             }
