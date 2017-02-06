@@ -1,7 +1,6 @@
 package com.company;
 
 import java.io.BufferedInputStream;
-import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.Socket;
 
@@ -10,18 +9,18 @@ import java.net.Socket;
  */
 public class ConnectionThread extends Thread implements POP3Defines {
     private Socket clientSock;
+    private LogThread logThread;
 
-    ConnectionThread(Socket clientSocket) {
+    ConnectionThread(Socket clientSocket, LogThread logThread) {
         clientSock = clientSocket;
+        this.logThread = logThread;
     }
 
     public void run() {
-        POP3Session session = new POP3Session(clientSock);
+        POP3Session session = new POP3Session(clientSock, logThread);
         session.sendResponse(POP3_WELCOME_RESPONSE);
-        System.out.println("thread start");
         try {
-            while (true/*clientSock.getInputStream().available() != 0*/) {
-                System.out.println("while");
+            while (true) {
                 BufferedInputStream stream = new BufferedInputStream(clientSock.getInputStream());
                 String msg = "";
                 int c;
@@ -30,9 +29,9 @@ public class ConnectionThread extends Thread implements POP3Defines {
                     msg += (char) c;
                     lastC = c;
                 }
-                System.out.println(msg.length() == 0 ? "empty" : msg);
+                logThread.log(msg.length() == 0 ? "empty" : msg);
                 if (-1 == session.processSession(msg)) {
-                    System.out.println("Connection thread closing...\n");
+                    logThread.log("Connection thread closing...\n");
                     clientSock.close();
                     return;
                 }

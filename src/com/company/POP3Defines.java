@@ -23,4 +23,5 @@ public interface POP3Defines {
 
     String USERS_DOMAIN ="Users";
     String PASS_FILE = "pass.pwd";
+    String LOG_FILE = "log.txt";
 }
