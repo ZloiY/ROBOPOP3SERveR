@@ -20,18 +20,20 @@ public class POP3Session implements POP3Defines {
     private String password;
     private long totalMailSize;
     private Socket socConnection;
+    private LogThread logThread;
     private List<POP3Message> pop3MessageList;
 
-    public POP3Session(Socket client_soc) {
+    public POP3Session(Socket clientSoc, LogThread logThread) {
         state = POP3_STATE_AUTHORIZATION;
-        socConnection = client_soc;
+        socConnection = clientSoc;
+        this.logThread = logThread;
         pop3MessageList = new ArrayList<>();
         lastMsg = 0;
         totalMailSize = 0;
     }
 
     public int sendResponse(String buf) {
-        System.out.println("Direct Sending: " + buf);
+        logThread.log("Direct Sending: " + buf);
         try {
             socConnection.getOutputStream().write(buf.getBytes());
         } catch (IOException e) {
@@ -62,7 +64,7 @@ public class POP3Session implements POP3Defines {
             default:
                 throw new RuntimeException("Invalid response type.");
         }
-        System.out.println("Sending: " + buf);
+        logThread.log("Sending: " + buf);
         try {
             socConnection.getOutputStream().write(buf.getBytes());
         } catch (IOException e) {
@@ -112,13 +114,13 @@ public class POP3Session implements POP3Defines {
             default:
                 if (buf.substring(0, 3).equals("TOP"))
                     return processTOP(buf);
-                else System.out.println("God damned russian hackers: " + buf);
+                else logThread.log("God damned russian hackers: " + buf);
         }
         return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
     }
 
     private int processUSER(String buf) {
-        System.out.println("ProcessUSER\n");
+        logThread.log("ProcessUSER\n");
         if (state != POP3_STATE_AUTHORIZATION)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
         String arguments = getArguments(buf);
@@ -126,17 +128,17 @@ public class POP3Session implements POP3Defines {
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "You should specify the username");
         userName = arguments;
         File connectingUserHome = new File(USERS_DOMAIN + File.separator + userName);
-        //System.out.println(userHome);
+        //logThread.log(userHome);
         if (!connectingUserHome.exists()) {
-            System.out.println("User " + userName + "'s Home '" + connectingUserHome.getAbsolutePath() + "' not found\n");
+            logThread.log("User " + userName + "'s Home '" + connectingUserHome.getAbsolutePath() + "' not found\n");
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "Wrong username");
         }
-        System.out.println("OK User " + userName + " Home " + connectingUserHome.getAbsolutePath() + "\n");
+        logThread.log("OK User " + userName + " Home " + connectingUserHome.getAbsolutePath() + "\n");
         return sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE);
     }
 
     private int processPASS(String buf) {
-        System.out.println("ProcessPASS\n");
+        logThread.log("ProcessPASS\n");
         if (state != POP3_STATE_AUTHORIZATION)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
         if (userName.length() < 1)
@@ -151,7 +153,7 @@ public class POP3Session implements POP3Defines {
     }
 
     private int processQUIT(String buf) {
-        System.out.println("ProcessQUIT\n");
+        logThread.log("ProcessQUIT\n");
         if (state == POP3_STATE_TRANSACTION)
             state = POP3_STATE_UPDATE;
         sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE, "Goodbye");
@@ -160,7 +162,7 @@ public class POP3Session implements POP3Defines {
     }
 
     private int processSTAT() {
-        System.out.println("ProcessSTAT\n");
+        logThread.log("ProcessSTAT\n");
         if (state != POP3_STATE_TRANSACTION)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
         lastMsg = 1;
@@ -177,7 +179,7 @@ public class POP3Session implements POP3Defines {
                 e.printStackTrace();
             }
         }
-        System.out.println("ProcessLIST " + msgId + "\n");
+        logThread.log("ProcessLIST " + msgId + "\n");
         if (state != POP3_STATE_TRANSACTION)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
         if (msgId > pop3MessageList.size())
@@ -213,7 +215,7 @@ public class POP3Session implements POP3Defines {
             }
         } else
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "No arguments");
-        System.out.println("ProcessRETR " + msgId + "\n");
+        logThread.log("ProcessRETR " + msgId + "\n");
         if (msgId > pop3MessageList.size())
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "Invalid message number");
         POP3Message message = pop3MessageList.get(msgId - 1);
@@ -238,7 +240,7 @@ public class POP3Session implements POP3Defines {
             }
         } else
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "No arguments");
-        System.out.println("ProcessDELE " + msgId + "\n");
+        logThread.log("ProcessDELE " + msgId + "\n");
         if (state != POP3_STATE_TRANSACTION || msgId > pop3MessageList.size())
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
         pop3MessageList.get(msgId - 1).delete();
@@ -248,19 +250,19 @@ public class POP3Session implements POP3Defines {
     }
 
     private int processNOOP() {
-        System.out.println("ProcessNOOP");
+        logThread.log("ProcessNOOP");
         return sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE);
     }
 
     private int processLAST() {
         if (state != POP3_STATE_TRANSACTION)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
-        System.out.println("ProcessLAST\n");
+        logThread.log("ProcessLAST\n");
         return sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE, String.valueOf(lastMsg));
     }
 
     private int processRSET() {
-        System.out.println("ProcessRSET");
+        logThread.log("ProcessRSET");
         if (state != POP3_STATE_TRANSACTION)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
         pop3MessageList.forEach(POP3Message::reset);
@@ -269,7 +271,7 @@ public class POP3Session implements POP3Defines {
     }
 
     private int processTOP(String buf) {
-        System.out.println("ProcessTOP");
+        logThread.log("ProcessTOP");
         if (state != POP3_STATE_TRANSACTION)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
         String[] parts = buf.split(SPLITTER);
@@ -315,25 +317,25 @@ public class POP3Session implements POP3Defines {
     }
 
     private boolean login(String userName, String userPassword) {
-        System.out.println("Login: ");
-        System.out.println("user= [" + this.userName + "] password = [" + password + "]\n");
+        logThread.log("Login: ");
+        logThread.log("user= [" + this.userName + "] password = [" + password + "]\n");
         String passPath = USERS_DOMAIN + File.separator + userName + File.separator + PASS_FILE;
         File passFile = new File(passPath);
-        System.out.println("Pwd file: " + passPath + "\n");
+        logThread.log("Pwd file: " + passPath + "\n");
         try (BufferedReader reader = new BufferedReader(new FileReader(passFile))) {
             String filePassword = "";
             int c;
             while ((c = reader.read()) != -1)
                 filePassword += (char) c;
             if (filePassword.equals(userPassword)) {
-                System.out.println("Password ok\n");
+                logThread.log("Password ok\n");
                 state = POP3_STATE_TRANSACTION;
                 userHome = new File(USERS_DOMAIN + File.separator + this.userName);
                 lockMailDrop();
                 return true;
             }
         } catch (FileNotFoundException e) {
-            System.out.println("Password file is missing!");
+            logThread.log("Password file is missing!");
             return false;
         } catch (IOException e) {
             e.printStackTrace();
@@ -342,9 +344,9 @@ public class POP3Session implements POP3Defines {
     }
 
     private void updateMails() {
-        System.out.println("Updating mails\n");
+        logThread.log("Updating mails\n");
         if (state != POP3_STATE_UPDATE) {
-            System.out.println("Called update but state is not POP3_STATE_UPDATE (" + POP3_STATE_UPDATE + ")\n");
+            logThread.log("Called update but state is not POP3_STATE_UPDATE (" + POP3_STATE_UPDATE + ")\n");
             return;
         }
         for (POP3Message message : pop3MessageList) {
@@ -367,7 +369,7 @@ public class POP3Session implements POP3Defines {
     }
 
     private void lockMailDrop() {
-        System.out.println("Locking maildrop");
+        logThread.log("Locking maildrop");
         if (!userHome.isDirectory()) {
             return;
         }
@@ -381,7 +383,7 @@ public class POP3Session implements POP3Defines {
                     totalMailSize += file.length();
                 }
             }
-        else System.out.println("No messages in " + userHome.getPath());
+        else logThread.log("No messages in " + userHome.getPath());
     }
 
 }
