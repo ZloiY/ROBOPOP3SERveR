@@ -3,11 +3,14 @@ package com.company;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Main implements POP3Defines {
     private static LogThread logThread;
-
+    private static List<Socket> socketList;
     public static void main(String[] args) {
+        socketList = new ArrayList<Socket>();
         try {
             ServerSocket serverSocket = new ServerSocket(POP3_PORT);
             logThread = new LogThread();
@@ -18,6 +21,10 @@ public class Main implements POP3Defines {
                     logThread.log("SIGINT Shutting down");
                     logThread.closeThread();
                     try {
+                        if (!socketList.isEmpty()){
+                            for (Socket socket : socketList)
+                                socket.close();
+                        }
                         serverSocket.close();
                     } catch (IOException e) {
                         e.printStackTrace();
@@ -37,6 +44,7 @@ public class Main implements POP3Defines {
         try {
             while (true) {
                 Socket socket = serverSocket.accept();
+                socketList.add(socket);
                 ConnectionThread connectionThread = new ConnectionThread(socket, logThread);
                 connectionThread.start();
             }
