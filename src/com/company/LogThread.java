@@ -6,23 +6,26 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-/**
- * Created by Terenfear on 06.02.2017.
- */
 public class LogThread extends Thread implements POP3Defines {
     private ConcurrentLinkedQueue<String> queue;
-    private final Object GUI_INITIALIZATION_MONITOR = new Object();
+    private final Object MONITOR = new Object();
     private File logFile;
     private boolean pauseThreadFlag = false;
     private boolean closeThreadFlag = false;
 
+    /**
+     * Конструктор логгера, создайм файл в который будет записываться лог,
+     * создаём очередь для записываемых сообщений
+     */
     public LogThread() {
         super();
         queue = new ConcurrentLinkedQueue<>();
         logFile = new File(LOG_FILE);
     }
 
-    @Override
+    /**
+     * Выводим получаемую логгером информацию в консоль и записываем её в файл
+     */
     public void run() {
         String loggingMsg = "";
         try (PrintStream stream = new PrintStream(new FileOutputStream(logFile, false))) {
@@ -39,33 +42,50 @@ public class LogThread extends Thread implements POP3Defines {
         }
     }
 
+    /**
+     * Добавляет полученное сообщение в очередь.
+     * @param msg сообщение для логгирования
+     */
     public void log(String msg) {
         queue.add(msg);
         resumeThread();
     }
 
+    /**
+     * Приостанавливает работу логгера.
+     */
     private void checkForPaused() {
-        synchronized (GUI_INITIALIZATION_MONITOR) {
+        synchronized (MONITOR) {
             while (pauseThreadFlag) {
                 try {
-                    GUI_INITIALIZATION_MONITOR.wait();
+                    MONITOR.wait();
                 } catch (Exception e) {
                 }
             }
         }
     }
 
+    /**
+     * Ставим логгер на "паузу".
+     * @throws InterruptedException
+     */
     public void pauseThread() throws InterruptedException {
         pauseThreadFlag = true;
     }
 
+    /**
+     * Возобновляем работу логгера.
+     */
     public void resumeThread() {
-        synchronized (GUI_INITIALIZATION_MONITOR) {
+        synchronized (MONITOR) {
             pauseThreadFlag = false;
-            GUI_INITIALIZATION_MONITOR.notify();
+            MONITOR.notify();
         }
     }
 
+    /**
+     * Закрываем поток.
+     */
     public void closeThread() {
         closeThreadFlag = true;
     }

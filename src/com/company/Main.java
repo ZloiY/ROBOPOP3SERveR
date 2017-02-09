@@ -40,6 +40,12 @@ public class Main implements POP3Defines {
         }
     }
 
+    /**
+     * Принимается новый клиент, запускается новый потокк для работы
+     * с клиентом.
+     * @param serverSocket сокет сервера
+     * @see ServerSocket
+     */
     private static void acceptConnection(ServerSocket serverSocket) {
         try {
             while (true) {

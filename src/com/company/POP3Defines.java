@@ -1,10 +1,5 @@
 package com.company;
 
-import java.io.File;
-
-/**
- * Created by ZloiY on 01-Feb-17.
- */
 public interface POP3Defines {
     int POP3_PORT = 110;
     int POP3_DEFAULT_NEGATIVE_RESPONSE = 0;

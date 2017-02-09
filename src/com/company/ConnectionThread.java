@@ -4,18 +4,25 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.net.Socket;
 
-/**
- * Created by ZloiY on 02-Feb-17.
- */
 public class ConnectionThread extends Thread implements POP3Defines {
     private Socket clientSock;
     private LogThread logThread;
 
+    /**
+     * Конструктор класса.
+     * @param clientSocket сокет клиента
+     * @param logThread поток для логгирования диалога клиент-сервер
+     * @see Socket
+     * @see LogThread
+     */
     ConnectionThread(Socket clientSocket, LogThread logThread) {
         clientSock = clientSocket;
         this.logThread = logThread;
     }
 
+    /**
+     * Открываем сессию с клиентом.
+     */
     public void run() {
         POP3Session session = new POP3Session(clientSock, logThread);
         session.sendResponse(POP3_WELCOME_RESPONSE);
@@ -39,6 +46,5 @@ public class ConnectionThread extends Thread implements POP3Defines {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        return;
     }
 }

@@ -7,9 +7,6 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Created by ZloiY on 01-Feb-17.
- */
 public class POP3Session implements POP3Defines {
     private static final String SPLITTER = " ";
 
