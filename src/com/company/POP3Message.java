@@ -20,14 +20,14 @@ public class POP3Message implements POP3Defines {
     }
 
     /**
-     * Присваисвает статусу сообщения статус удаленно
+     * Устанавливает для сообщения флаг "сообщение удаленно".
      */
     public void delete() {
         status = POP3_MSG_STATUS_DELETED;
     }
 
     /**
-     * Сбрасывает статус сообщения
+     * Устанавливает для сообщения флаг "сообщение?????".
      */
     public void reset() {
         status = POP3_MSG_STATUS_INITIAL;
