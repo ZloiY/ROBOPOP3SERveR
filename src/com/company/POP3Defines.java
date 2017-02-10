@@ -2,9 +2,12 @@ package com.company;
 
 public interface POP3Defines {
     int POP3_PORT = 110;
+
     int POP3_DEFAULT_NEGATIVE_RESPONSE = 0;
     int POP3_DEFAULT_AFFIRMATIVE_RESPONSE = 1;
     int POP3_WELCOME_RESPONSE = 2;
+
+    int POP3_SESSION_QUITTED = 100;
 
     int POP3_STATE_AUTHORIZATION = 300;
     int POP3_STATE_TRANSACTION = 301;
