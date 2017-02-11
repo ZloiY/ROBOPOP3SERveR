@@ -68,7 +68,7 @@ public interface POP3Defines {
      * Имя директории, в которой хранятся данные и почтовые
      * ящики всех зарегестрирован пользователь.
      */
-    String USERS_DOMAIN ="Users";
+    String USERS_DIRECTORY ="Users";
 
     /**
      * Имя файлов, используемых сервером для хранения паролей

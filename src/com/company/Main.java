@@ -6,9 +6,17 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Класс, используемый для запуска сервера, настройки сокетов и приема соединиений.
+ */
 public class Main implements POP3Defines {
     private static LogThread logThread;
     private static List<Socket> socketList;
+
+    /**
+     * Точка входа серверного преложения.
+     * @param args аргументы командной строки, переданные при запуске
+     */
     public static void main(String[] args) {
         socketList = new ArrayList<Socket>();
         try {

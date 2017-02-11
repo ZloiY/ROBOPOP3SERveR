@@ -1,10 +1,16 @@
 package com.company;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.PrintStream;
+import java.io.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
+
+/**
+ * Поток для логирования работы сервера. Принимает сообщения от потоков,
+ * работающих с сессиями клиентов, и выводит их в окно терминала, а
+ * также заносит их в лог-файл.
+ * @see ConnectionThread
+ * @see POP3Session
+ * @see #LOG_FILE
+ */
 
 public class LogThread extends Thread implements POP3Defines {
     private ConcurrentLinkedQueue<String> queue;
