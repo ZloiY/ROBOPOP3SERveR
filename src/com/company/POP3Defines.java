@@ -1,30 +1,83 @@
 package com.company;
 
-import java.io.File;
-
 /**
- * Created by ZloiY on 01-Feb-17.
+ * Интерфейс, описывающий константы, используемые в данной реализации POP3 сервера.
  */
 public interface POP3Defines {
+    /**
+     * Порт, используемый протоколом POP3.
+     */
     int POP3_PORT = 110;
+
+    /**
+     * Индикатор выполнения, сообщающий об ошибке.
+     */
     int POP3_DEFAULT_NEGATIVE_RESPONSE = 0;
+
+    /**
+     * Индикатор выполнения, сообщающий об успехе.
+     */
     int POP3_DEFAULT_AFFIRMATIVE_RESPONSE = 1;
+
+    /**
+     * Внутренний индикатор приветственного сообщения.
+     */
     int POP3_WELCOME_RESPONSE = 2;
 
-    int POP3_STATE_AUTHORIZATION = 3;
-    int POP3_STATE_TRANSACTION = 4;
-    int POP3_STATE_UPDATE = 5;
+    /**
+     * Внутренний индикатор, сообщающий, что клиент закончил сессию.
+     */
+    int POP3_SESSION_QUITED = 100;
 
-    int POP3_STAT_RESPONSE = 16;
-    int POP3_MSG_STATUS_UNDEFINED = 0;
-    int POP3_MSG_STATUS_NEW = 1;
-    int POP3_MSG_STATUS_READ = 2;
-    int POP3_MSG_STATUS_REPLIED = 4;
-    int POP3_MSG_STATUS_DELETED = 8;
-    int POP3_MSG_STATUS_CUSTOM = 16;
-    String APP_TITLE = "pop3server";
+    /**
+     * Состояние сервера, при котором производится авторизация клиента
+     */
+    int POP3_STATE_AUTHORIZATION = 300;
+
+    /**
+     * Состояние сервера, при котором производятся операции с письмами
+     */
+    int POP3_STATE_TRANSACTION = 301;
+
+    /**
+     * Состояние сервера, при котором к письмам применяются изменения, сделанные пользователем
+     */
+    int POP3_STATE_UPDATE = 302;
+
+    /**
+     * Изначальный статус всех сообщений в почтовом ящике.
+     */
+    int POP3_MSG_STATUS_INITIAL = 501;
+
+    /**
+     * Статус сообщений, помеченных как удаленные.
+     */
+    int POP3_MSG_STATUS_DELETED = 502;
+
+    /**
+     * Название ПО, используемого сервером.
+     */
+    String APP_TITLE = "robopop3server";
+
+    /**
+     * Версия ПО, используемая сервером
+     */
     String APP_VERSION = "1.0";
 
-    String USERS_DOMAIN = File.pathSeparator + "Users";
-    String PASS_FILE = "pass.txt";
+    /**
+     * Имя директории, в которой хранятся данные и почтовые
+     * ящики всех зарегестрирован пользователь.
+     */
+    String USERS_DOMAIN ="Users";
+
+    /**
+     * Имя файлов, используемых сервером для хранения паролей
+     * для каждого пользователя.
+     */
+    String PASS_FILE = "pass.pwd";
+
+    /**
+     * Имя файла, который используется для логирования работы сервера.
+     */
+    String LOG_FILE = "log.txt";
 }
