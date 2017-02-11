@@ -7,6 +7,33 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Класс для работы с сессией клиента и сообщениями почтового ящика
+ * (класс {@link POP3Letter}).
+ * <p>Реализует интерфейс почтового ящика (протокол POP3) по
+ * регламенту RFC 1225:
+ * <ul><li>аутентификацию (методы {@link #processUSER(String)} и
+ * {@link #processPASS(String)})
+ * <li>получение краткой информации о количестве писем и объёме
+ * занимаемого ими пространства (метод {@link #processSTAT()})
+ * <li>получение краткой информации об объёме пространства,
+ * занимаемого письмом, идентификатор которого передается как
+ * параметр команды (если параметр не задан, то клиент получит
+ * такую информацию обо всех письмах в ящике) (метод {@link #processLIST(String)})
+ * <li>передачу клиенту содержимого запрашиваемого письма (метод
+ * {@link #processRETR(String)})
+ * <li>удаление запрашиваемого письма (метод {@link #processDELE(String)})
+ * <li>получение отклика от сервера (метод {@link #processNOOP()})
+ * <li>получение наибольшего идентификатора среди всех писем,
+ * к которым было обращение (метод {@link #processLAST()})
+ * <li>сброс всех изменений, произведённых пользователем (метод
+ * {@link #processRSET()})
+ * <li>получение заголовка и заданного количества строк из запрашиваемого
+ * письма (метод {@link #processTOP(String)})
+ * <li>завершение сессии и принятие изменений (метод {@link #processQUIT()})
+ * </ul>
+ */
+
 public class POP3Session implements POP3Defines {
     private static final String SPLITTER = " ";
 
@@ -18,26 +45,50 @@ public class POP3Session implements POP3Defines {
     private long totalMailSize;
     private Socket socConnection;
     private LogThread logThread;
-    private List<POP3Message> pop3MessageList;
+    private List<POP3Letter> pop3LetterList;
 
+    /**
+     * Контруктор класса.
+     *
+     * @param clientSoc сокет клиента
+     * @param logThread поток для логгирования диалога клиент-сервер
+     * @see Socket
+     * @see LogThread
+     */
     public POP3Session(Socket clientSoc, LogThread logThread) {
         state = POP3_STATE_AUTHORIZATION;
         socConnection = clientSoc;
         this.logThread = logThread;
-        pop3MessageList = new ArrayList<>();
+        pop3LetterList = new ArrayList<>();
         lastMsg = 0;
         totalMailSize = 0;
     }
 
-    public int sendResponse(String buf) {
-        logThread.log("Direct Sending: " + buf);
+    /**
+     * Отправляет клиенту ответ без индикатора выполнения.
+     *
+     * @param message строка, которая будет отправлена клиенту в качестве ответа
+     */
+    public void sendResponse(String message) {
+        logThread.log("Direct Sending: " + message);
         try {
-            socConnection.getOutputStream().write(buf.getBytes());
+            socConnection.getOutputStream().write(message.getBytes());
         } catch (IOException e) {
             e.printStackTrace();
         }
-        return 0;
     }
+
+    /**
+     * Отправляет клиенту ответ с заданным индикатором выполнения.
+     *
+     * @param nResponseType индикатор выполнения (значения индикаторов
+     *                      объявлены в {@link POP3Defines})
+     * @param message       строка, которая будет отправлена клиенту
+     *                      в качестве ответа. Может быть {@code null},
+     *                      в таком случае будет отправлено краткое
+     *                      сообщение о статусе выполнения действия
+     * @return значение индикатора выполнения действия
+     */
 
     public int sendResponse(int nResponseType, @Nullable String message) {
         String buf = "";
@@ -70,21 +121,42 @@ public class POP3Session implements POP3Defines {
         return nResponseType;
     }
 
-    public Socket getSocConnection() {
-        return socConnection;
-    }
-
+    /**
+     * Отправляет клиенту краткое сообщение о статусе выполнения
+     * задания с заданным индикатором выполнения.
+     *
+     * @param nResponseType индикатор выполнения (значения
+     *                      индикаторов объявлены в {@link POP3Defines})
+     * @return значение индикатора выполнения действия
+     */
     public int sendResponse(int nResponseType) {
         return sendResponse(nResponseType, null);
     }
 
-    private String getArguments(String buf) {
+    /**
+     * Получает параметр запроса клиента, если он имеется.
+     *
+     * @param buf строка, содержащая полученный от клиента запрос
+     * @return параметр запроса клиента либо {@code null}, если
+     * параметра в запросе нет
+     */
+    private String getParam(String buf) {
         String[] parts = buf.split(SPLITTER);
         if (parts.length > 1)
-            return parts[1].substring(0, parts[1].length());
+            return parts[1];
         else return null;
     }
 
+    /**
+     * Анализирует полученный от клиента запрос и инициирует
+     * выполнение требуемого клиентом действия.
+     *
+     * @param buf запрос клиента
+     * @return индикатор выполнения инициированного действия либо
+     * индикатор {@code POP3_DEFAULT_NEGATIVE_RESPONSE}, если
+     * клиент неправильно сформировал запрос
+     * @see POP3Defines
+     */
     public int processSession(String buf) {
         String cmd = buf.substring(0, 4);
         switch (cmd) {
@@ -93,7 +165,7 @@ public class POP3Session implements POP3Defines {
             case "PASS":
                 return processPASS(buf);
             case "QUIT":
-                return processQUIT(buf);
+                return processQUIT();
             case "STAT":
                 return processSTAT();
             case "LIST":
@@ -116,16 +188,24 @@ public class POP3Session implements POP3Defines {
         return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
     }
 
+    /**
+     * Обрабатывает команду {@code USER}, полученную от клиента, и проверяет,
+     * корректно ли полученное имя пользователя и зарегестрирован ли
+     * данный пользователь на сервере. Действие не будет выполнено,
+     * если сервер не находится в состоянии {@code POP3_STATE_AUTHORIZATION}.
+     *
+     * @param buf строка, содержащая запрос от клиента
+     * @return индикатор выполнения действия
+     */
     private int processUSER(String buf) {
         logThread.log("ProcessUSER\n");
         if (state != POP3_STATE_AUTHORIZATION)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
-        String arguments = getArguments(buf);
+        String arguments = getParam(buf);
         if (arguments == null)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "You should specify the username");
         userName = arguments;
         File connectingUserHome = new File(USERS_DOMAIN + File.separator + userName);
-        //logThread.log(userHome);
         if (!connectingUserHome.exists()) {
             logThread.log("User " + userName + "'s Home '" + connectingUserHome.getAbsolutePath() + "' not found\n");
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "Wrong username");
@@ -134,13 +214,27 @@ public class POP3Session implements POP3Defines {
         return sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE);
     }
 
+    /**
+     * Обрабатывает команду {@code PASS}, полученную от клиента, и проверяет,
+     * корректен ли полученный пароль и соответствует ли он полученному
+     * ранее от клиента имени пользователя, от лица которого происходит
+     * аутентификация. Также проверяет, было ли ранее предоставлено
+     * клиентом имя пользователя, зарегестрированного в системе (т. е.
+     * действие может быть выполнено только после завершения {@link #processUSER(String)}
+     * c индикатором {@code POP3_DEFAULT_AFFIRMATIVE_RESPONSE}).
+     * Кроме того, действие не будет выполнено, если сервер не
+     * находится в состоянии {@code POP3_STATE_AUTHORIZATION}.
+     *
+     * @param buf строка, содержащая запрос от клиента
+     * @return индикатор выполнения действия
+     */
     private int processPASS(String buf) {
         logThread.log("ProcessPASS\n");
         if (state != POP3_STATE_AUTHORIZATION)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
         if (userName.length() < 1)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "You did not introduce yourself");
-        String arguments = getArguments(buf);
+        String arguments = getParam(buf);
         if (arguments == null)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "You should specify a password");
         password = arguments;
@@ -149,26 +243,59 @@ public class POP3Session implements POP3Defines {
         else return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "Wrong password");
     }
 
-    private int processQUIT(String buf) {
+    /**
+     * Обрабатывает команду {@code QUIT}, полученную от клиента. Если на момент
+     * обработки сервер находится в состоянии {@code POP3_STATE_TRANSACTION},
+     * то сервер переходит в состояние {@code POP3_STATE_UPDATE},
+     * инициируется применение сделанных клиентом изменений и завершение
+     * сессии. В других состояниях команда выполнена не будет.
+     *
+     * @return внутренний индикатор {@code POP3_SESSION_QUITED},
+     * сообщающий, что клиент закончил сессию
+     */
+    private int processQUIT() {
         logThread.log("ProcessQUIT\n");
         if (state == POP3_STATE_TRANSACTION)
             state = POP3_STATE_UPDATE;
         sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE, "Goodbye");
         updateMails();
-        return -1;
+        return POP3_SESSION_QUITED;
     }
 
+    /**
+     * Обрабатывает команду {@code STAT}, полученную от клиента. Если на момент
+     * обработки сервер находится в состоянии {@code POP3_STATE_TRANSACTION},
+     * то сервер отправляет клиенту краткую информацию о количестве писем и
+     * объеме занимаемого ими пространства. В других состояниях команда
+     * выполнена не будет.
+     *
+     * @return индикатор выполнения действия
+     */
     private int processSTAT() {
         logThread.log("ProcessSTAT\n");
         if (state != POP3_STATE_TRANSACTION)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
         lastMsg = 1;
-        return sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE, String.valueOf(pop3MessageList.size()) + " " + String.valueOf(totalMailSize));
+        return sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE, String.valueOf(pop3LetterList.size()) + " " + String.valueOf(totalMailSize));
     }
 
+    /**
+     * Обрабатывает команду {@code LIST}, полученную от клиента. Если на момент
+     * обработки сервер находится в состоянии {@code POP3_STATE_TRANSACTION},
+     * то сервер отправляет клиенту краткую информацию об объеме пространства,
+     * занимаемого письмом, идентификатор которого был передан в качестве
+     * параметра (если параметр не указан, то будет отправлена информация
+     * об объеме каждого письма в почтовом ящике пользователя). В других
+     * состояниях команда выполнена не будет. Если письмо с указанным
+     * идентификатором не существует или было ранее удалено клиентом, то
+     * клиент получит сообщение об ошибке.
+     *
+     * @param buf строка, содержащая запрос от клиента
+     * @return индикатор выполнения действия
+     */
     private int processLIST(String buf) {
         int msgId = 0;
-        String arguments = getArguments(buf);
+        String arguments = getParam(buf);
         if (arguments != null) {
             try {
                 msgId = Integer.valueOf(arguments);
@@ -179,10 +306,10 @@ public class POP3Session implements POP3Defines {
         logThread.log("ProcessLIST " + msgId + "\n");
         if (state != POP3_STATE_TRANSACTION)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
-        if (msgId > pop3MessageList.size())
-            return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "No such message, only " + pop3MessageList.size() + " messages in maildrop");
+        if (msgId > pop3LetterList.size())
+            return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "No such message, only " + pop3LetterList.size() + " messages in maildrop");
         if (msgId > 0) {
-            POP3Message message = pop3MessageList.get(msgId);
+            POP3Letter message = pop3LetterList.get(msgId);
             if (message.getStatus() == POP3_MSG_STATUS_DELETED)
                 return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "This message has been deleted");
             else
@@ -190,20 +317,31 @@ public class POP3Session implements POP3Defines {
         } else {
             sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE);
 
-            for (int i = 0; i < pop3MessageList.size(); i++) {
-                if (pop3MessageList.get(i).getStatus() != POP3_MSG_STATUS_DELETED)
-                    sendResponse(String.valueOf(i + 1) + " " + pop3MessageList.get(i).getSize() + "\r\n");
+            for (int i = 0; i < pop3LetterList.size(); i++) {
+                if (pop3LetterList.get(i).getStatus() != POP3_MSG_STATUS_DELETED)
+                    sendResponse(String.valueOf(i + 1) + " " + pop3LetterList.get(i).getSize() + "\r\n");
             }
             sendResponse(".\r\n");
         }
         return 0;
     }
 
+    /**
+     * Обрабатывает команду {@code RETR}, полученную от клиента. Если на момент
+     * обработки сервер находится в состоянии {@code POP3_STATE_TRANSACTION},
+     * то сервер отправляет клиенту содержимое письма с идентификатором,
+     * переданным в качестве параметра. В других состояниях команда выполнена
+     * не будет. Если письмо с указанным идентификатором не существует или
+     * было ранее удалено клиентом, то клиент получит сообщение об ошибке.
+     *
+     * @param buf строка, содержащая запрос от клиента
+     * @return индикатор выполнения действия
+     */
     private int processRETR(String buf) {
         if (state != POP3_STATE_TRANSACTION)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
         int msgId = 0;
-        String arguments = getArguments(buf);
+        String arguments = getParam(buf);
         if (arguments != null) {
             try {
                 msgId = Integer.valueOf(arguments);
@@ -213,22 +351,33 @@ public class POP3Session implements POP3Defines {
         } else
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "No arguments");
         logThread.log("ProcessRETR " + msgId + "\n");
-        if (msgId > pop3MessageList.size())
+        if (msgId > pop3LetterList.size())
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "Invalid message number");
-        POP3Message message = pop3MessageList.get(msgId - 1);
+        POP3Letter message = pop3LetterList.get(msgId - 1);
         if (message.getStatus() == POP3Defines.POP3_MSG_STATUS_DELETED)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "This message has been deleted");
         sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE, String.valueOf(message.getSize()) + " octets");
-        sendMessageFile(message.getFile());
+        sendLetterFile(message.getFile());
         sendResponse("\r\n.\r\n");
         if (msgId > lastMsg)
             lastMsg = msgId;
         return 0;
     }
 
+    /**
+     * Обрабатывает команду {@code DELE}, полученную от клиента. Если на момент
+     * обработки сервер находится в состоянии {@code POP3_STATE_TRANSACTION},
+     * то сервер помечает письмо с идентификатором, переданным в качестве
+     * параметра, как удаленное. В других состояниях команда выполнена
+     * не будет. Если письмо с указанным идентификатором не существует, 
+     * то клиент получит сообщение об ошибке.
+     *
+     * @param buf строка, содержащая запрос от клиента
+     * @return индикатор выполнения действия
+     */
     private int processDELE(String buf) {
         int msgId = 0;
-        String arguments = getArguments(buf);
+        String arguments = getParam(buf);
         if (arguments != null) {
             try {
                 msgId = Integer.valueOf(arguments);
@@ -238,19 +387,32 @@ public class POP3Session implements POP3Defines {
         } else
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "No arguments");
         logThread.log("ProcessDELE " + msgId + "\n");
-        if (state != POP3_STATE_TRANSACTION || msgId > pop3MessageList.size())
+        if (state != POP3_STATE_TRANSACTION || msgId > pop3LetterList.size())
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
-        pop3MessageList.get(msgId - 1).delete();
+        pop3LetterList.get(msgId - 1).delete();
         if (msgId > lastMsg)
             lastMsg = msgId;
         return sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE);
     }
 
+    /**
+     * Обрабатывает команду {@code NOOP}, полученную от клиента. Отправляет клиенту ответ с идентификатором выполнения {@code POP3_DEFAULT_AFFIRMATIVE_RESPONSE}.
+     *
+     * @return индикатор выполнения действия
+     */
     private int processNOOP() {
         logThread.log("ProcessNOOP");
         return sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE);
     }
 
+    /**
+     * Обрабатывает команду {@code LAST}, полученную от клиента. Если на момент
+     * обработки сервер находится в состоянии {@code POP3_STATE_TRANSACTION}, то
+     * сервер отправляет клиенту наибольший идентификатор среди всех писем, к
+     * которым было обращение. В других состояниях команда выполнена не будет.
+     *
+     * @return индикатор выполнения действия
+     */
     private int processLAST() {
         if (state != POP3_STATE_TRANSACTION)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
@@ -258,15 +420,35 @@ public class POP3Session implements POP3Defines {
         return sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE, String.valueOf(lastMsg));
     }
 
+    /**
+     * Обрабатывает команду {@code RSET}, полученную от клиента. Если на момент
+     * обработки сервер находится в состоянии {@code POP3_STATE_TRANSACTION}, то
+     * сервер сбрасывает состояние всех писем на {@code POP3_MSG_STATUS_INITIAL}.
+     * В других состояниях команда выполнена не будет.
+     *
+     * @return индикатор выполнения действия
+     */
     private int processRSET() {
         logThread.log("ProcessRSET");
         if (state != POP3_STATE_TRANSACTION)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
-        pop3MessageList.forEach(POP3Message::reset);
+        pop3LetterList.forEach(POP3Letter::reset);
         lastMsg = 0;
         return sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE);
     }
 
+    /**
+     * Обрабатывает команду {@code TOP}, полученную от клиента. Если на момент
+     * обработки сервер находится в состоянии {@code POP3_STATE_TRANSACTION}, то
+     * сервер отправляет клиенту заголовок письма, идентификатор которого
+     * задается первым параметром, и количество строк письма, заданное вторым
+     * параметром (если второй параметр больше совокупного количества строк в
+     * письме, то клиенту будет возвращен весь текст письма). В других
+     * состояниях команда выполнена не будет.
+     *
+     * @param buf строка, содержащая запрос от клиента
+     * @return индикатор выполнения действия
+     */
     private int processTOP(String buf) {
         logThread.log("ProcessTOP");
         if (state != POP3_STATE_TRANSACTION)
@@ -274,7 +456,7 @@ public class POP3Session implements POP3Defines {
         String[] parts = buf.split(SPLITTER);
         int msgId = Integer.valueOf(parts[1]);
         int lineNumber = Integer.valueOf(parts[2]);
-        POP3Message message = pop3MessageList.get(msgId - 1);
+        POP3Letter message = pop3LetterList.get(msgId - 1);
         if (message.getStatus() == POP3_MSG_STATUS_DELETED)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "This message has been deleted");
         String header = "";
@@ -313,6 +495,14 @@ public class POP3Session implements POP3Defines {
         return POP3_DEFAULT_AFFIRMATIVE_RESPONSE;
     }
 
+    /**
+     * Выполняет авторизацию пользователя. Если авторизация успешна, то
+     * сервер переводится в состояние {@code POP3_STATE_TRANSACTION}.
+     *
+     * @param userName имя пользователя
+     * @param userPassword пароль
+     * @return результат авторизации
+     */
     private boolean login(String userName, String userPassword) {
         logThread.log("Login: ");
         logThread.log("user= [" + this.userName + "] password = [" + password + "]\n");
@@ -340,31 +530,44 @@ public class POP3Session implements POP3Defines {
         return false;
     }
 
+    /**
+     * Удаляет файлы сообщений, помеченные как удаленные (имеющие
+     * статус {@code POP3_MSG_STATUS_DELETED}). Если сервер не
+     * находится в состоянии {@code POP3_STATE_UPDATE}, то действие
+     * выполнено не будет.
+     */
     private void updateMails() {
         logThread.log("Updating mails\n");
         if (state != POP3_STATE_UPDATE) {
             logThread.log("Called update but state is not POP3_STATE_UPDATE (" + POP3_STATE_UPDATE + ")\n");
             return;
         }
-        for (POP3Message message : pop3MessageList) {
+        for (POP3Letter message : pop3LetterList) {
             if (message.getStatus() == POP3_MSG_STATUS_DELETED)
                 message.getFile().delete();
         }
     }
 
-    private int sendMessageFile(File messageFile) {
-        try (BufferedReader reader = new BufferedReader(new FileReader(messageFile))) {
+    /**
+     * Отправляет клиенту содержимое файла с письмом.
+     *
+     * @param letterFile файл, содержащий текст письма
+     */
+    private void sendLetterFile(File letterFile) {
+        try (BufferedReader reader = new BufferedReader(new FileReader(letterFile))) {
             String content = "";
             int c;
             while ((c = reader.read()) != -1)
                 content += ((char) c) == '\n' ? "\r\n" : (char) c;
-            getSocConnection().getOutputStream().write(content.getBytes());
+            socConnection.getOutputStream().write(content.getBytes());
         } catch (IOException e) {
             e.printStackTrace();
         }
-        return 0;
     }
 
+    /**
+     * Ограничевает доступ к ящику одним пользователем и собирает информацию о письмах.
+     */
     private void lockMailDrop() {
         logThread.log("Locking maildrop");
         if (!userHome.isDirectory()) {
@@ -376,7 +579,7 @@ public class POP3Session implements POP3Defines {
                 String fileName = file.getName();
                 String fileExt = fileName.substring(fileName.length() - 3, fileName.length());
                 if (file.isFile() && fileExt.equals("txt")) {
-                    pop3MessageList.add(new POP3Message(POP3_MSG_STATUS_INITIAL, file.length(), file));
+                    pop3LetterList.add(new POP3Letter(POP3_MSG_STATUS_INITIAL, file.length(), file));
                     totalMailSize += file.length();
                 }
             }

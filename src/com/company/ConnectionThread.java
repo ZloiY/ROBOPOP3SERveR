@@ -4,6 +4,15 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.net.Socket;
 
+/**
+ * Поток для работы с соединением отдельного клиента.
+ * <p>Выполняет прием данных от клиента с помощью
+ * {@link BufferedInputStream}, поддерживает сессию
+ * (работа с {@link POP3Session}) и обеспечивает связь
+ * сессии с потоком для логгирования диалога клиент-сервер
+ * {@link LogThread}.
+ */
+
 public class ConnectionThread extends Thread implements POP3Defines {
     private Socket clientSock;
     private LogThread logThread;
@@ -20,9 +29,6 @@ public class ConnectionThread extends Thread implements POP3Defines {
         this.logThread = logThread;
     }
 
-    /**
-     * Открываем сессию с клиентом.
-     */
     public void run() {
         POP3Session session = new POP3Session(clientSock, logThread);
         session.sendResponse(POP3_WELCOME_RESPONSE);
@@ -37,7 +43,7 @@ public class ConnectionThread extends Thread implements POP3Defines {
                     lastC = c;
                 }
                 logThread.log(msg.length() == 0 ? "empty" : msg);
-                if (-1 == session.processSession(msg)) {
+                if (session.processSession(msg) == POP3_SESSION_QUITED) {
                     logThread.log("Connection thread closing...\n");
                     clientSock.close();
                     return;
