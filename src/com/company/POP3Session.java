@@ -205,7 +205,7 @@ public class POP3Session implements POP3Defines {
         if (arguments == null)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "You should specify the username");
         userName = arguments;
-        File connectingUserHome = new File(USERS_DOMAIN + File.separator + userName);
+        File connectingUserHome = new File(USERS_DIRECTORY + File.separator + userName);
         if (!connectingUserHome.exists()) {
             logThread.log("User " + userName + "'s Home '" + connectingUserHome.getAbsolutePath() + "' not found\n");
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "Wrong username");
@@ -506,7 +506,7 @@ public class POP3Session implements POP3Defines {
     private boolean login(String userName, String userPassword) {
         logThread.log("Login: ");
         logThread.log("user= [" + this.userName + "] password = [" + password + "]\n");
-        String passPath = USERS_DOMAIN + File.separator + userName + File.separator + PASS_FILE;
+        String passPath = USERS_DIRECTORY + File.separator + userName + File.separator + PASS_FILE;
         File passFile = new File(passPath);
         logThread.log("Pwd file: " + passPath + "\n");
         try (BufferedReader reader = new BufferedReader(new FileReader(passFile))) {
@@ -517,7 +517,7 @@ public class POP3Session implements POP3Defines {
             if (filePassword.equals(userPassword)) {
                 logThread.log("Password ok\n");
                 state = POP3_STATE_TRANSACTION;
-                userHome = new File(USERS_DOMAIN + File.separator + this.userName);
+                userHome = new File(USERS_DIRECTORY + File.separator + this.userName);
                 lockMailDrop();
                 return true;
             }
