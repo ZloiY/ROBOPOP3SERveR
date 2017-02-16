@@ -59,7 +59,11 @@ public class LogThread extends Thread implements POP3Defines {
     }
 
     /**
+<<<<<<< HEAD
      * Проверяет, приостановлен ли поток логирования.
+=======
+     * Если стоит флаг паузы, то приостанавливаем процесс логирования.
+>>>>>>> 8d1db5a4b38e85023b03c1806d595cfcd51c2de9
      */
     private void checkForPaused() {
         synchronized (MONITOR) {
@@ -73,14 +77,23 @@ public class LogThread extends Thread implements POP3Defines {
     }
 
     /**
+<<<<<<< HEAD
      * Приостанавливает поток логирования.
+=======
+     * Ставим флаг паузы.
+     * @throws InterruptedException
+>>>>>>> 8d1db5a4b38e85023b03c1806d595cfcd51c2de9
      */
     public void pauseThread(){
         pauseThreadFlag = true;
     }
 
     /**
+<<<<<<< HEAD
      * Возобновляет работу потока логирования.
+=======
+     * Снимаем флаг паузы.
+>>>>>>> 8d1db5a4b38e85023b03c1806d595cfcd51c2de9
      */
     public void resumeThread() {
         synchronized (MONITOR) {
@@ -90,7 +103,11 @@ public class LogThread extends Thread implements POP3Defines {
     }
 
     /**
+<<<<<<< HEAD
      * Устанавливает флаг для закрытия потока логирования.
+=======
+     * Устанавливаем флаг закрытия потока.
+>>>>>>> 8d1db5a4b38e85023b03c1806d595cfcd51c2de9
      */
     public void closeThread() {
         closeThreadFlag = true;
