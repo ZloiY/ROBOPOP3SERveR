@@ -72,7 +72,7 @@ public class POP3Session implements POP3Defines {
     public void sendResponse(String message) {
         logThread.log("Direct Sending: " + message);
         try {
-            socConnection.getOutputStream().write(message.getBytes());
+            socConnection.getOutputStream().write(message.getBytes("UTF-8"));
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -114,7 +114,7 @@ public class POP3Session implements POP3Defines {
         }
         logThread.log("Sending: " + buf);
         try {
-            socConnection.getOutputStream().write(buf.getBytes());
+            socConnection.getOutputStream().write(buf.getBytes("UTF-8"));
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -554,12 +554,14 @@ public class POP3Session implements POP3Defines {
      * @param letterFile файл, содержащий текст письма
      */
     private void sendLetterFile(File letterFile) {
-        try (BufferedReader reader = new BufferedReader(new FileReader(letterFile))) {
-            String content = "";
-            int c;
-            while ((c = reader.read()) != -1)
-                content += ((char) c) == '\n' ? "\r\n" : (char) c;
-            socConnection.getOutputStream().write(content.getBytes());
+        try (FileInputStream fileInputStream = new FileInputStream(letterFile)) {
+            byte[] bytes = new byte[(int) letterFile.length()];
+            fileInputStream.read(bytes);
+            fileInputStream.close();
+            socConnection.getOutputStream().write(bytes);
+            File file = new File("test");
+            FileOutputStream writer = new FileOutputStream(file);
+            writer.write(bytes);
         } catch (IOException e) {
             e.printStackTrace();
         }
