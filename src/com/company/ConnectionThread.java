@@ -16,6 +16,7 @@ import java.net.Socket;
 public class ConnectionThread extends Thread implements POP3Defines {
     private Socket clientSock;
     private LogThread logThread;
+    private boolean isOnline;
 
     /**
      * Конструктор класса.
@@ -27,13 +28,14 @@ public class ConnectionThread extends Thread implements POP3Defines {
     ConnectionThread(Socket clientSocket, LogThread logThread) {
         clientSock = clientSocket;
         this.logThread = logThread;
+        isOnline = true;
     }
 
     public void run() {
         POP3Session session = new POP3Session(clientSock, logThread);
         session.sendResponse(POP3_WELCOME_RESPONSE);
         try {
-            while (true) {
+            while (isOnline) {
                 BufferedInputStream stream = new BufferedInputStream(clientSock.getInputStream());
                 String msg = "";
                 int c;
@@ -49,8 +51,16 @@ public class ConnectionThread extends Thread implements POP3Defines {
                     return;
                 }
             }
+            session.processSession("RSET");
+            session.processSession("QUIT");
+            logThread.log("Connection thread closing...\n");
+            clientSock.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public void endSession(){
+        isOnline = false;
     }
 }
