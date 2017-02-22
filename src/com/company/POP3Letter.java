@@ -9,6 +9,7 @@ import java.io.File;
  */
 public class POP3Letter implements POP3Defines {
     private File letterFile;
+    private String uniqueId;
     private int status;
     private long size;
 
@@ -18,10 +19,11 @@ public class POP3Letter implements POP3Defines {
      * @param nSize размер письма
      * @param letterFile файл письма
      */
-    public POP3Letter(int nStatus, long nSize, File letterFile) {
+    public POP3Letter(int nStatus, long nSize, File letterFile, String uniqueId) {
         status = nStatus;
         size = nSize;
         this.letterFile = letterFile;
+        this.uniqueId = uniqueId;
     }
 
     /**
@@ -60,5 +62,9 @@ public class POP3Letter implements POP3Defines {
      */
     public File getFile() {
         return letterFile;
+    }
+
+    public String getUniqueId(){
+        return uniqueId;
     }
 }

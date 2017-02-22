@@ -44,7 +44,7 @@ public class ConnectionThread extends Thread implements POP3Defines {
                     msg += (char) c;
                     lastC = c;
                 }
-                logThread.log(msg.length() == 0 ? "empty" : msg);
+                logThread.log("Message from client: " + (msg.length() == 0 ? "empty" : msg));
                 if (session.processSession(msg) == POP3_SESSION_QUITED) {
                     logThread.log("Connection thread closing...\n");
                     clientSock.close();
