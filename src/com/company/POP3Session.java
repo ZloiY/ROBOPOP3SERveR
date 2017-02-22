@@ -11,7 +11,7 @@ import java.util.List;
  * Класс для работы с сессией клиента и сообщениями почтового ящика
  * (класс {@link POP3Letter}).
  * <p>Реализует интерфейс почтового ящика (протокол POP3) по
- * регламенту RFC 1225:
+ * спецификации RFC 1225:
  * <ul><li>аутентификацию (методы {@link #processUSER(String)} и
  * {@link #processPASS(String)})
  * <li>получение краткой информации о количестве писем и объёме
@@ -26,8 +26,13 @@ import java.util.List;
  * <li>получение отклика от сервера (метод {@link #processNOOP()})
  * <li>получение наибольшего идентификатора среди всех писем,
  * к которым было обращение (метод {@link #processLAST()})
- * <li>сброс всех изменений, произведённых пользователем (метод
- * {@link #processRSET()})
+ * <li>сброс всех изменений, произведённых пользователем (метод {@link #processRSET()})
+ * <li>получение информации об уникальном идентификаторе
+ * каждого письма, номер которого передается как параметр
+ * команды (если параметр не задан, то клиент получит такую
+ * информацию обо всех письмах в ящике) (метод {@link #processUIDL(String)})
+ * <li>получение списка дополнительных команд, поддерживаемых сервером
+ * (метод {@link #processCAPA()})
  * <li>получение заголовка и заданного количества строк из запрашиваемого
  * письма (метод {@link #processTOP(String)})
  * <li>завершение сессии и принятие изменений (метод {@link #processQUIT()})
@@ -159,6 +164,7 @@ public class POP3Session implements POP3Defines {
      * @see POP3Defines
      */
     public int processSession(String buf) {
+        buf = buf.toUpperCase();
         String cmd = buf.substring(0, 4);
         switch (cmd) {
             case "USER":
@@ -262,10 +268,11 @@ public class POP3Session implements POP3Defines {
      */
     private int processQUIT() {
         logThread.log("ProcessQUIT\n");
-        if (state == POP3_STATE_TRANSACTION)
+        if (state == POP3_STATE_TRANSACTION) {
             state = POP3_STATE_UPDATE;
+            updateMails();
+        }
         sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE, "Goodbye");
-        updateMails();
         return POP3_SESSION_QUITED;
     }
 
@@ -501,6 +508,20 @@ public class POP3Session implements POP3Defines {
         return POP3_DEFAULT_AFFIRMATIVE_RESPONSE;
     }
 
+    /**
+     * Обрабатывает команду {@code UIDL}, полученную от клиента. Если на момент
+     * обработки сервер находится в состоянии {@code POP3_STATE_TRANSACTION},
+     * то сервер отправляет клиенту информацию об уникальном идентификаторе
+     * письма, номер которого был передан в качестве параметра (если параметр
+     * не указан, то будет отправлена информация об уникальном идентификаторе
+     * каждого письма в почтовом ящике пользователя). В других
+     * состояниях команда выполнена не будет. Если письмо с указанным
+     * идентификатором не существует или было ранее удалено клиентом, то
+     * клиент получит сообщение об ошибке.
+     *
+     * @param buf строка, содержащая запрос от клиента
+     * @return индикатор выполнения действия
+     */
     private int processUIDL(String buf) {
         int msgId = 0;
         String arguments = getParam(buf);
@@ -533,6 +554,13 @@ public class POP3Session implements POP3Defines {
         return POP3_DEFAULT_AFFIRMATIVE_RESPONSE;
     }
 
+    /**
+     * Обрабатывает команду {@code CAPA}, полученную от клиента,
+     * возвращая клиенту список дополнительных команд, поддерживаемых
+     * сервером.
+     *
+     * @return индикатор выполнения действия
+     */
     private int processCAPA() {
         logThread.log("processCAPA");
         sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE, "List of capabilities:");
@@ -634,6 +662,15 @@ public class POP3Session implements POP3Defines {
                 }
             }
         else logThread.log("No messages in " + userHome.getPath());
+    }
+
+    /**
+     * Принудительно авершает работу с клиентом.
+     */
+    public void shutdown() {
+        if (state == POP3_STATE_TRANSACTION)
+            processRSET();
+        processQUIT();
     }
 
 }

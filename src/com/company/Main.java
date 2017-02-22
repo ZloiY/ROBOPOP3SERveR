@@ -12,6 +12,7 @@ import java.util.List;
 public class Main implements POP3Defines {
     private static LogThread logThread;
     private static List<ConnectionThread> threadList;
+    private static boolean isRunning = true;
 
     /**
      * Точка входа серверного преложения.
@@ -27,16 +28,12 @@ public class Main implements POP3Defines {
                 @Override
                 public void run() {
                     logThread.log("SIGINT Shutting down");
-                    try {
-                        if (!threadList.isEmpty()){
-                            for (ConnectionThread thread : threadList)
-                                thread.endSession();
-                        }
-                        serverSocket.close();
-                        logThread.closeThread();
-                    } catch (IOException e) {
-                        e.printStackTrace();
+                    if (!threadList.isEmpty()){
+                        for (ConnectionThread thread : threadList)
+                            thread.endSession();
                     }
+                    isRunning = false;
+                    logThread.closeThread();
                 }
             });
             logThread.start();
@@ -56,12 +53,13 @@ public class Main implements POP3Defines {
      */
     private static void acceptConnection(ServerSocket serverSocket) {
         try {
-            while (true) {
+            while (isRunning) {
                 Socket socket = serverSocket.accept();
                 ConnectionThread connectionThread = new ConnectionThread(socket, logThread);
                 connectionThread.start();
                 threadList.add(connectionThread);
             }
+            serverSocket.close();
         } catch (IOException e) {
             e.printStackTrace();
         }

@@ -51,15 +51,17 @@ public class ConnectionThread extends Thread implements POP3Defines {
                     return;
                 }
             }
-            session.processSession("RSET");
-            session.processSession("QUIT");
-            logThread.log("Connection thread closing...\n");
+            session.shutdown();
             clientSock.close();
+            logThread.log("Connection thread closing...\n");
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
+    /**
+     * Завершает сессию.
+     */
     public void endSession(){
         isOnline = false;
     }
