@@ -11,14 +11,15 @@ import java.util.List;
  */
 public class Main implements POP3Defines {
     private static LogThread logThread;
-    private static List<Socket> socketList;
+    private static List<ConnectionThread> threadList;
+    private static boolean isRunning = true;
 
     /**
      * Точка входа серверного преложения.
      * @param args аргументы командной строки, переданные при запуске
      */
     public static void main(String[] args) {
-        socketList = new ArrayList<Socket>();
+        threadList = new ArrayList<>();
         try {
             ServerSocket serverSocket = new ServerSocket(POP3_PORT);
             logThread = new LogThread();
@@ -27,16 +28,12 @@ public class Main implements POP3Defines {
                 @Override
                 public void run() {
                     logThread.log("SIGINT Shutting down");
-                    logThread.closeThread();
-                    try {
-                        if (!socketList.isEmpty()){
-                            for (Socket socket : socketList)
-                                socket.close();
-                        }
-                        serverSocket.close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
+                    if (!threadList.isEmpty()){
+                        for (ConnectionThread thread : threadList)
+                            thread.endSession();
                     }
+                    isRunning = false;
+                    logThread.closeThread();
                 }
             });
             logThread.start();
@@ -56,12 +53,13 @@ public class Main implements POP3Defines {
      */
     private static void acceptConnection(ServerSocket serverSocket) {
         try {
-            while (true) {
+            while (isRunning) {
                 Socket socket = serverSocket.accept();
-                socketList.add(socket);
                 ConnectionThread connectionThread = new ConnectionThread(socket, logThread);
                 connectionThread.start();
+                threadList.add(connectionThread);
             }
+            serverSocket.close();
         } catch (IOException e) {
             e.printStackTrace();
         }

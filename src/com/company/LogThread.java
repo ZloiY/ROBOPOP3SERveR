@@ -1,6 +1,8 @@
 package com.company;
 
 import java.io.*;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
@@ -54,7 +56,8 @@ public class LogThread extends Thread implements POP3Defines {
      * @param msg сообщение для логирования
      */
     public void log(String msg) {
-        queue.add(msg);
+        String timestamp = new SimpleDateFormat("[dd-MM-yyyy HH:mm:ss] ").format(new Date(System.currentTimeMillis()));
+        queue.add(timestamp + msg);
         resumeThread();
     }
 

@@ -11,7 +11,7 @@ import java.util.List;
  * Класс для работы с сессией клиента и сообщениями почтового ящика
  * (класс {@link POP3Letter}).
  * <p>Реализует интерфейс почтового ящика (протокол POP3) по
- * регламенту RFC 1225:
+ * спецификации RFC 1225:
  * <ul><li>аутентификацию (методы {@link #processUSER(String)} и
  * {@link #processPASS(String)})
  * <li>получение краткой информации о количестве писем и объёме
@@ -26,8 +26,13 @@ import java.util.List;
  * <li>получение отклика от сервера (метод {@link #processNOOP()})
  * <li>получение наибольшего идентификатора среди всех писем,
  * к которым было обращение (метод {@link #processLAST()})
- * <li>сброс всех изменений, произведённых пользователем (метод
- * {@link #processRSET()})
+ * <li>сброс всех изменений, произведённых пользователем (метод {@link #processRSET()})
+ * <li>получение информации об уникальном идентификаторе
+ * каждого письма, номер которого передается как параметр
+ * команды (если параметр не задан, то клиент получит такую
+ * информацию обо всех письмах в ящике) (метод {@link #processUIDL(String)})
+ * <li>получение списка дополнительных команд, поддерживаемых сервером
+ * (метод {@link #processCAPA()})
  * <li>получение заголовка и заданного количества строк из запрашиваемого
  * письма (метод {@link #processTOP(String)})
  * <li>завершение сессии и принятие изменений (метод {@link #processQUIT()})
@@ -70,6 +75,7 @@ public class POP3Session implements POP3Defines {
      * @param message строка, которая будет отправлена клиенту в качестве ответа
      */
     public void sendResponse(String message) {
+        message += "\r\n";
         logThread.log("Direct Sending: " + message);
         try {
             socConnection.getOutputStream().write(message.getBytes("UTF-8"));
@@ -158,6 +164,7 @@ public class POP3Session implements POP3Defines {
      * @see POP3Defines
      */
     public int processSession(String buf) {
+        buf = buf.toUpperCase();
         String cmd = buf.substring(0, 4);
         switch (cmd) {
             case "USER":
@@ -180,10 +187,16 @@ public class POP3Session implements POP3Defines {
                 return processLAST();
             case "RSET":
                 return processRSET();
+            case "AUTH":
+                return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "Server support only unprotected connections");
+            case "UIDL":
+                return processUIDL(buf);
+            case "CAPA":
+                return processCAPA();
             default:
                 if (buf.substring(0, 3).equals("TOP"))
                     return processTOP(buf);
-                else logThread.log("God damned russian hackers: " + buf);
+                else logThread.log("Command is not supported" + buf);
         }
         return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
     }
@@ -255,10 +268,11 @@ public class POP3Session implements POP3Defines {
      */
     private int processQUIT() {
         logThread.log("ProcessQUIT\n");
-        if (state == POP3_STATE_TRANSACTION)
+        if (state == POP3_STATE_TRANSACTION) {
             state = POP3_STATE_UPDATE;
+            updateMails();
+        }
         sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE, "Goodbye");
-        updateMails();
         return POP3_SESSION_QUITED;
     }
 
@@ -319,11 +333,11 @@ public class POP3Session implements POP3Defines {
 
             for (int i = 0; i < pop3LetterList.size(); i++) {
                 if (pop3LetterList.get(i).getStatus() != POP3_MSG_STATUS_DELETED)
-                    sendResponse(String.valueOf(i + 1) + " " + pop3LetterList.get(i).getSize() + "\r\n");
+                    sendResponse(String.valueOf(i + 1) + " " + pop3LetterList.get(i).getSize());
             }
-            sendResponse(".\r\n");
+            sendResponse(".");
         }
-        return 0;
+        return POP3_DEFAULT_AFFIRMATIVE_RESPONSE;
     }
 
     /**
@@ -358,10 +372,10 @@ public class POP3Session implements POP3Defines {
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "This message has been deleted");
         sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE, String.valueOf(message.getSize()) + " octets");
         sendLetterFile(message.getFile());
-        sendResponse("\r\n.\r\n");
+        sendResponse("\r\n.");
         if (msgId > lastMsg)
             lastMsg = msgId;
-        return 0;
+        return POP3_DEFAULT_AFFIRMATIVE_RESPONSE;
     }
 
     /**
@@ -369,7 +383,7 @@ public class POP3Session implements POP3Defines {
      * обработки сервер находится в состоянии {@code POP3_STATE_TRANSACTION},
      * то сервер помечает письмо с идентификатором, переданным в качестве
      * параметра, как удаленное. В других состояниях команда выполнена
-     * не будет. Если письмо с указанным идентификатором не существует, 
+     * не будет. Если письмо с указанным идентификатором не существует,
      * то клиент получит сообщение об ошибке.
      *
      * @param buf строка, содержащая запрос от клиента
@@ -487,11 +501,73 @@ public class POP3Session implements POP3Defines {
         }
         sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE);
         sendResponse(header);
-        sendResponse("\r\n");
         for (String line : lines) {
             sendResponse(line);
         }
-        sendResponse("\r\n.\r\n");
+        sendResponse(".");
+        return POP3_DEFAULT_AFFIRMATIVE_RESPONSE;
+    }
+
+    /**
+     * Обрабатывает команду {@code UIDL}, полученную от клиента. Если на момент
+     * обработки сервер находится в состоянии {@code POP3_STATE_TRANSACTION},
+     * то сервер отправляет клиенту информацию об уникальном идентификаторе
+     * письма, номер которого был передан в качестве параметра (если параметр
+     * не указан, то будет отправлена информация об уникальном идентификаторе
+     * каждого письма в почтовом ящике пользователя). В других
+     * состояниях команда выполнена не будет. Если письмо с указанным
+     * идентификатором не существует или было ранее удалено клиентом, то
+     * клиент получит сообщение об ошибке.
+     *
+     * @param buf строка, содержащая запрос от клиента
+     * @return индикатор выполнения действия
+     */
+    private int processUIDL(String buf) {
+        int msgId = 0;
+        String arguments = getParam(buf);
+        if (arguments != null) {
+            try {
+                msgId = Integer.valueOf(arguments);
+            } catch (NumberFormatException e) {
+                e.printStackTrace();
+            }
+        }
+        logThread.log("ProcessUIDL " + msgId + "\n");
+        if (state != POP3_STATE_TRANSACTION)
+            return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
+        if (msgId > pop3LetterList.size())
+            return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "No such message, only " + pop3LetterList.size() + " messages in maildrop");
+        if (msgId > 0) {
+            POP3Letter message = pop3LetterList.get(msgId);
+            if (message.getStatus() == POP3_MSG_STATUS_DELETED)
+                return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "This message has been deleted");
+            else
+                return sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE, String.valueOf(msgId) + " " + message.getUniqueId());
+        } else {
+            sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE);
+            for (int i = 0; i < pop3LetterList.size(); i++) {
+                if (pop3LetterList.get(i).getStatus() != POP3_MSG_STATUS_DELETED)
+                    sendResponse(String.valueOf(i + 1) + " " + pop3LetterList.get(i).getUniqueId());
+            }
+            sendResponse(".");
+        }
+        return POP3_DEFAULT_AFFIRMATIVE_RESPONSE;
+    }
+
+    /**
+     * Обрабатывает команду {@code CAPA}, полученную от клиента,
+     * возвращая клиенту список дополнительных команд, поддерживаемых
+     * сервером.
+     *
+     * @return индикатор выполнения действия
+     */
+    private int processCAPA() {
+        logThread.log("processCAPA");
+        sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE, "List of capabilities:");
+        sendResponse("TOP");
+        sendResponse("USER");
+        sendResponse("UIDL");
+        sendResponse(".");
         return POP3_DEFAULT_AFFIRMATIVE_RESPONSE;
     }
 
@@ -499,7 +575,7 @@ public class POP3Session implements POP3Defines {
      * Выполняет авторизацию пользователя. Если авторизация успешна, то
      * сервер переводится в состояние {@code POP3_STATE_TRANSACTION}.
      *
-     * @param userName имя пользователя
+     * @param userName     имя пользователя
      * @param userPassword пароль
      * @return результат авторизации
      */
@@ -581,11 +657,20 @@ public class POP3Session implements POP3Defines {
                 String fileName = file.getName();
                 String fileExt = fileName.substring(fileName.length() - 3, fileName.length());
                 if (file.isFile() && fileExt.equals("txt")) {
-                    pop3LetterList.add(new POP3Letter(POP3_MSG_STATUS_INITIAL, file.length(), file));
+                    pop3LetterList.add(new POP3Letter(POP3_MSG_STATUS_INITIAL, file.length(), file, file.getName()));
                     totalMailSize += file.length();
                 }
             }
         else logThread.log("No messages in " + userHome.getPath());
+    }
+
+    /**
+     * Принудительно авершает работу с клиентом.
+     */
+    public void shutdown() {
+        if (state == POP3_STATE_TRANSACTION)
+            processRSET();
+        processQUIT();
     }
 
 }
