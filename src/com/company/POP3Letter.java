@@ -3,7 +3,7 @@ package com.company;
 import java.io.File;
 
 /**
- * Класс, используемый для представления информации о каждом 
+ * Класс, используемый для представления информации о каждом
  * письме в почтовом ящике пользователя.
  * <p>Содержит информацию о файле, хранящем текст письма, статус письма и объем памяти, занимаемой файлом письма.
  */
@@ -15,9 +15,11 @@ public class POP3Letter implements POP3Defines {
 
     /**
      * Конструктор класса.
-     * @param nStatus статус письма
-     * @param nSize размер письма
+     *
+     * @param nStatus    статус письма
+     * @param nSize      размер письма
      * @param letterFile файл письма
+     * @param uniqueId   уникальный идентификатор
      */
     public POP3Letter(int nStatus, long nSize, File letterFile, String uniqueId) {
         status = nStatus;
@@ -42,6 +44,7 @@ public class POP3Letter implements POP3Defines {
 
     /**
      * Возвращает статус письма.
+     *
      * @return статус письма
      */
     public int getStatus() {
@@ -50,6 +53,7 @@ public class POP3Letter implements POP3Defines {
 
     /**
      * Возвращает размер письма.
+     *
      * @return размер письма
      */
     public long getSize() {
@@ -58,13 +62,14 @@ public class POP3Letter implements POP3Defines {
 
     /**
      * Возвращает файл, содержащий текст письма.
+     *
      * @return файл с текстом письма
      */
     public File getFile() {
         return letterFile;
     }
 
-    public String getUniqueId(){
+    public String getUniqueId() {
         return uniqueId;
     }
 }
