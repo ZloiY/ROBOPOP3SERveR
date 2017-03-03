@@ -1,12 +1,14 @@
 package com.company;
 
-import org.apache.james.mime4j.message.*;
 
-import java.io.BufferedInputStream;
+import org.apache.james.mime4j.dom.Message;
+import org.apache.james.mime4j.dom.MessageWriter;
+import org.apache.james.mime4j.message.DefaultMessageWriter;
+
+import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.ArrayList;
+import java.io.OutputStream;
 import java.util.List;
 
 /**
@@ -15,52 +17,76 @@ import java.util.List;
  * <p>Содержит информацию о файле, хранящем текст письма, статус письма и объем памяти, занимаемой файлом письма.
  */
 public class POP3Letter implements POP3Defines {
-    private File letterFile;
-    private String uniqueId;
+    /**
+     * Директория, содержащая файлы пиьсма.
+     */
+    private File letterDir;
+    /**
+     * Письмо, офрмленное стандартно формату MIME.
+     */
     private Message mimeMessage;
-    private List<BodyPart> bodyParts;
-    private List<Body> binaryBody;
-    private TextBody simpleText;
-    private TextBody htmlText;
-    private SingleBody singleBody;
+    /**
+     * Заголовок письма.
+     */
+    private String header;
+    /**
+     * Текст письма.
+     */
+    private String text;
+    /**
+     * Массив, содержаший файлы, прикреплённые к письму.
+     */
+    private List<File> attachments;
+    /**
+     * Уникальный идентификатор пиьсма.
+     */
+    private String uniqueId;
+    /**
+     * Статус пиьсма.
+     */
     private int status;
-    private long size;
+    /**
+     * Размер пиьсма в байтах.
+     */
+    private long size = -1;
 
     /**
      * Конструктор класса.
      *
-     * @param nStatus    статус письма
-     * @param nSize      размер письма
-     * @param letterFile файл письма
-     * @param uniqueId   уникальный идентификатор
+     * @param nStatus   статус письма
+     * @param letterDir директория письма
      */
-    public POP3Letter(int nStatus, long nSize, File letterFile, String uniqueId) {
+    public POP3Letter(int nStatus, File letterDir) {
         status = nStatus;
-        size = nSize;
-        this.letterFile = letterFile;
-        this.uniqueId = uniqueId;
-        try(BufferedInputStream bufferedInputStream = new BufferedInputStream(new FileInputStream(letterFile))){
-            mimeMessage = new Message(bufferedInputStream);
-        }catch (IOException e){
+        this.letterDir = letterDir;
+        MessageAssembler assembler = new MessageAssembler();
+        mimeMessage = assembler.assembleFromFiles(letterDir);
+        header = mimeMessage.getHeader().toString();
+        try (ByteArrayOutputStream baoStream = new ByteArrayOutputStream()) {
+            DefaultMessageWriter writer = new DefaultMessageWriter();
+            writer.writeMessage(mimeMessage, baoStream);
+            size = baoStream.size();
+        } catch (IOException e) {
             e.printStackTrace();
         }
-        if (mimeMessage.isMultipart()) {
-            binaryBody = new ArrayList<Body>();
-            for (int i = 0; i < bodyParts.size(); i++) {
-                BodyPart bodyPart = bodyParts.get(i);
-                Body someBody = bodyPart.getBody();
-                if (someBody instanceof BinaryBody)
-                    binaryBody.add(someBody);
-                else switch (someBody.getParent().getMimeType()) {
-                    case "text/plain":
-                        simpleText = (TextBody) someBody;
-                        break;
-                    case "text/html":
-                        htmlText = (TextBody) someBody;
-                        break;
-                }
-            }
+        try {
+            text = assembler.getText();
+            attachments = assembler.getAttachments();
+        } catch (NullPointerException e) {
+            e.printStackTrace();
         }
+        uniqueId = letterDir.getName();
+    }
+
+    /**
+     * Отправляет клиенту содержимое письмо, оформленное в соответствии со спецификацией MIME.
+     *
+     * @param out выходной поток, в который будет отправлено письмо
+     */
+    public void send(OutputStream out) throws IOException {
+        MessageWriter writer = new DefaultMessageWriter();
+        writer.writeMessage(mimeMessage, out);
+
     }
 
     /**
@@ -96,15 +122,6 @@ public class POP3Letter implements POP3Defines {
     }
 
     /**
-     * Возвращает файл, содержащий текст письма.
-     *
-     * @return файл с текстом письма
-     */
-    public File getFile() {
-        return letterFile;
-    }
-
-    /**
      * Возвращает уникальный ID письма.
      *
      * @return ID письма
@@ -114,21 +131,12 @@ public class POP3Letter implements POP3Defines {
     }
 
     /**
-     * Возвращает заголовок письма.
+     * Возвращает директорию, в которой находятся файлы письма.
      *
-     * @return заголовок письма
+     * @return ID письма
      */
-    public Header getHeader(){
-        return mimeMessage.getHeader();
-    }
-
-    /**
-     * Возвращает список прикреплённых к сообщению файлов.
-     *
-     * @return список прикреплённыйх файлов
-     */
-    public List<Body> getBinaryFiles(){
-        return binaryBody;
+    public File getLetterDir() {
+        return letterDir;
     }
 
     /**
@@ -136,34 +144,34 @@ public class POP3Letter implements POP3Defines {
      *
      * @return текст письма
      */
-    public TextBody getSimpleText(){
-        return simpleText;
+    public String getText() {
+        return text;
     }
 
     /**
-     * Возвращает текст письма в формате hmtl.
+     * Возвращает список прикреплённых к сообщению файлов.
      *
-     * @return текст письма в формате html
+     * @return список прикреплённыйх файлов
      */
-    public TextBody getHtmlText(){
-        return htmlText;
+    public List<File> getAttachments() {
+        return attachments;
     }
 
     /**
-     * Возвращет письмо типа MIME.
+     * Возвращает заголовок письма.
+     *
+     * @return заголовок письма
+     */
+    public String getHeader() {
+        return header;
+    }
+
+    /**
+     * Возвращет письмо, оформленное по стандарту MIME.
      *
      * @return MIME письмо
      */
     public Message getMimeMessage() {
         return mimeMessage;
-    }
-
-    /**
-     * Возвращает тело письма.
-     *
-     * @return тело пиьсма
-     */
-    public Body getMessageBody(){
-        return mimeMessage.getBody();
     }
 }

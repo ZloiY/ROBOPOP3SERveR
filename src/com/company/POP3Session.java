@@ -1,6 +1,7 @@
 package com.company;
 
 import com.sun.istack.internal.Nullable;
+import org.apache.commons.io.FileUtils;
 
 import java.io.*;
 import java.net.Socket;
@@ -40,8 +41,6 @@ import java.util.List;
  */
 
 public class POP3Session implements POP3Defines {
-    private static final String SPLITTER = " ";
-
     /**
      * Содержит состаяние сессии между сервером и клентом.
      */
@@ -139,7 +138,7 @@ public class POP3Session implements POP3Defines {
                 break;
 
             case POP3_WELCOME_RESPONSE:
-                buf = "+OK " + APP_TITLE + " " + APP_VERSION + " POP3 Server ready on\r\n";
+                buf = "+OK " + APP_TITLE + " POP3 Server ready on\r\n";
                 break;
 
             default:
@@ -174,7 +173,7 @@ public class POP3Session implements POP3Defines {
      * параметра в запросе нет
      */
     private String getParam(String buf) {
-        String[] parts = buf.split(SPLITTER);
+        String[] parts = buf.split(" ");
         if (parts.length > 1)
             return parts[1];
         else return null;
@@ -191,7 +190,6 @@ public class POP3Session implements POP3Defines {
      * @see POP3Defines
      */
     public int processSession(String buf) {
-        buf = buf.toUpperCase();
         String cmd = buf.substring(0, 4);
         switch (cmd) {
             case "USER":
@@ -394,11 +392,15 @@ public class POP3Session implements POP3Defines {
         logThread.log("ProcessRETR " + msgId + "\n");
         if (msgId > pop3LetterList.size())
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "Invalid message number");
-        POP3Letter message = pop3LetterList.get(msgId - 1);
-        if (message.getStatus() == POP3Defines.POP3_MSG_STATUS_DELETED)
+        POP3Letter letter = pop3LetterList.get(msgId - 1);
+        if (letter.getStatus() == POP3Defines.POP3_MSG_STATUS_DELETED)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "This message has been deleted");
-        sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE, String.valueOf(message.getSize()) + " octets");
-        sendLetterFile(message.getFile());
+        sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE, String.valueOf(letter.getSize()) + " octets");
+        try {
+            letter.send(socConnection.getOutputStream());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         sendResponse("\r\n.");
         if (msgId > lastMsg)
             lastMsg = msgId;
@@ -494,42 +496,19 @@ public class POP3Session implements POP3Defines {
         logThread.log("ProcessTOP");
         if (state != POP3_STATE_TRANSACTION)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE);
-        String[] parts = buf.split(SPLITTER);
+        String[] parts = buf.split(" ");
         int msgId = Integer.valueOf(parts[1]);
         int lineNumber = Integer.valueOf(parts[2]);
         POP3Letter message = pop3LetterList.get(msgId - 1);
         if (message.getStatus() == POP3_MSG_STATUS_DELETED)
             return sendResponse(POP3_DEFAULT_NEGATIVE_RESPONSE, "This message has been deleted");
-        String header = "";
-        List<String> lines = new ArrayList<>();
-        try (BufferedReader reader = new BufferedReader(new FileReader(message.getFile()))) {
-            int c, lastC = 0;
-            boolean crlf = false;
-            while ((c = reader.read()) != -1) {
-                header += ((char) c) == '\n' ? "\r\n" : (char) c;
-                if (c == '\r' && crlf) {
-                    reader.read();
-                    break;
-                }
-                crlf = (lastC == '\r' && c == '\n');
-                lastC = c;
-            }
-            lastC = 0;
-            for (int lineId = 0; lineId < lineNumber; lineId++) {
-                String line = "";
-                while ((c = reader.read()) != -1 || (lastC == '\r' && c == '\n')) {
-                    line += ((char) c) == '\n' ? "\r\n" : (char) c;
-                    lastC = c;
-                }
-                lines.add(line);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
         sendResponse(POP3_DEFAULT_AFFIRMATIVE_RESPONSE);
-        sendResponse(header);
-        for (String line : lines) {
-            sendResponse(line);
+        sendResponse(message.getHeader());
+        String[] lines = message.getText().split(System.getProperty("line.separator"));
+        if (lineNumber > lines.length)
+            lineNumber = lines.length;
+        for (int i = 0; i < lineNumber; i++) {
+            sendResponse(lines[i].replace(System.getProperty("line.separator"), "\r\n"));
         }
         sendResponse(".");
         return POP3_DEFAULT_AFFIRMATIVE_RESPONSE;
@@ -645,28 +624,13 @@ public class POP3Session implements POP3Defines {
             logThread.log("Called update but state is not POP3_STATE_UPDATE (" + POP3_STATE_UPDATE + ")\n");
             return;
         }
-        for (POP3Letter message : pop3LetterList) {
-            if (message.getStatus() == POP3_MSG_STATUS_DELETED)
-                message.getFile().delete();
-        }
-    }
-
-    /**
-     * Отправляет клиенту содержимое файла с письмом.
-     *
-     * @param letterFile файл, содержащий текст письма
-     */
-    private void sendLetterFile(File letterFile) {
-        try (FileInputStream fileInputStream = new FileInputStream(letterFile)) {
-            byte[] bytes = new byte[(int) letterFile.length()];
-            fileInputStream.read(bytes);
-            fileInputStream.close();
-            socConnection.getOutputStream().write(bytes);
-            File file = new File("test");
-            FileOutputStream writer = new FileOutputStream(file);
-            writer.write(bytes);
-        } catch (IOException e) {
-            e.printStackTrace();
+        for (POP3Letter letter : pop3LetterList) {
+            if (letter.getStatus() == POP3_MSG_STATUS_DELETED)
+                try {
+                    FileUtils.deleteDirectory(letter.getLetterDir());
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
         }
     }
 
@@ -681,11 +645,10 @@ public class POP3Session implements POP3Defines {
         File[] files = userHome.listFiles();
         if (files.length > 1)
             for (File file : files) {
-                String fileName = file.getName();
-                String fileExt = fileName.substring(fileName.length() - 3, fileName.length());
-                if (file.isFile() && fileExt.equals("txt")) {
-                    pop3LetterList.add(new POP3Letter(POP3_MSG_STATUS_INITIAL, file.length(), file, file.getName()));
-                    totalMailSize += file.length();
+                if (file.isDirectory()){
+                    POP3Letter letter = new POP3Letter(POP3_MSG_STATUS_INITIAL, file);
+                    pop3LetterList.add(letter);
+                    totalMailSize += letter.getSize();
                 }
             }
         else logThread.log("No messages in " + userHome.getPath());
