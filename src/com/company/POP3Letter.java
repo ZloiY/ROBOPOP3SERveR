@@ -1,6 +1,13 @@
 package com.company;
 
+import org.apache.james.mime4j.message.*;
+
+import java.io.BufferedInputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Класс, используемый для представления информации о каждом
@@ -10,6 +17,12 @@ import java.io.File;
 public class POP3Letter implements POP3Defines {
     private File letterFile;
     private String uniqueId;
+    private Message mimeMessage;
+    private List<BodyPart> bodyParts;
+    private List<Body> binaryBody;
+    private TextBody simpleText;
+    private TextBody htmlText;
+    private SingleBody singleBody;
     private int status;
     private long size;
 
@@ -26,6 +39,28 @@ public class POP3Letter implements POP3Defines {
         size = nSize;
         this.letterFile = letterFile;
         this.uniqueId = uniqueId;
+        try(BufferedInputStream bufferedInputStream = new BufferedInputStream(new FileInputStream(letterFile))){
+            mimeMessage = new Message(bufferedInputStream);
+        }catch (IOException e){
+            e.printStackTrace();
+        }
+        if (mimeMessage.isMultipart()) {
+            binaryBody = new ArrayList<Body>();
+            for (int i = 0; i < bodyParts.size(); i++) {
+                BodyPart bodyPart = bodyParts.get(i);
+                Body someBody = bodyPart.getBody();
+                if (someBody instanceof BinaryBody)
+                    binaryBody.add(someBody);
+                else switch (someBody.getParent().getMimeType()) {
+                    case "text/plain":
+                        simpleText = (TextBody) someBody;
+                        break;
+                    case "text/html":
+                        htmlText = (TextBody) someBody;
+                        break;
+                }
+            }
+        }
     }
 
     /**
@@ -69,7 +104,66 @@ public class POP3Letter implements POP3Defines {
         return letterFile;
     }
 
+    /**
+     * Возвращает уникальный ID письма.
+     *
+     * @return ID письма
+     */
     public String getUniqueId() {
         return uniqueId;
+    }
+
+    /**
+     * Возвращает заголовок письма.
+     *
+     * @return заголовок письма
+     */
+    public Header getHeader(){
+        return mimeMessage.getHeader();
+    }
+
+    /**
+     * Возвращает список прикреплённых к сообщению файлов.
+     *
+     * @return список прикреплённыйх файлов
+     */
+    public List<Body> getBinaryFiles(){
+        return binaryBody;
+    }
+
+    /**
+     * Возвращает текст письма.
+     *
+     * @return текст письма
+     */
+    public TextBody getSimpleText(){
+        return simpleText;
+    }
+
+    /**
+     * Возвращает текст письма в формате hmtl.
+     *
+     * @return текст письма в формате html
+     */
+    public TextBody getHtmlText(){
+        return htmlText;
+    }
+
+    /**
+     * Возвращет письмо типа MIME.
+     *
+     * @return MIME письмо
+     */
+    public Message getMimeMessage() {
+        return mimeMessage;
+    }
+
+    /**
+     * Возвращает тело письма.
+     *
+     * @return тело пиьсма
+     */
+    public Body getMessageBody(){
+        return mimeMessage.getBody();
     }
 }

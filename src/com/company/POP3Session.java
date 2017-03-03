@@ -42,14 +42,41 @@ import java.util.List;
 public class POP3Session implements POP3Defines {
     private static final String SPLITTER = " ";
 
+    /**
+     * Содержит состаяние сессии между сервером и клентом.
+     */
     private int state;
+    /**
+     * Содержит ID последнего сообщения.
+     */
     private int lastMsg;
+    /**
+     * Директория пользователя содержащая его сообщения.
+     */
     private File userHome;
+    /**
+     * Имя пользователя.
+     */
     private String userName;
+    /**
+     * Пароль пользователя.
+     */
     private String password;
+    /**
+     * Содержит размер сообщения.
+     */
     private long totalMailSize;
+    /**
+     * Сокет для подключения клиента.
+     */
     private Socket socConnection;
+    /**
+     * Поток логирования сесси.
+     */
     private LogThread logThread;
+    /**
+     * Список сообщений пользователя.
+     */
     private List<POP3Letter> pop3LetterList;
 
     /**

@@ -15,10 +15,25 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  */
 
 public class LogThread extends Thread implements POP3Defines {
+    /**
+     * Очередь записываемых в лог сообщений.
+     */
     private ConcurrentLinkedQueue<String> queue;
+    /**
+     * Объект управляющий выполнением потока записи сообщений в лог.
+     */
     private final Object MONITOR = new Object();
+    /**
+     * Фаил куда писаться сообщения из лога.
+     */
     private File logFile;
+    /**
+     * Флаг показывающий приостановлен ли поток логгированияю.
+     */
     private boolean pauseThreadFlag = false;
+    /**
+     * Флаг показывающий закрытие потока логгирования.
+     */
     private boolean closeThreadFlag = false;
 
     /**

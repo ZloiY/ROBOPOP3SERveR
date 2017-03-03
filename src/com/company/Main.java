@@ -10,8 +10,17 @@ import java.util.List;
  * Класс, используемый для запуска сервера, настройки сокетов и приема соединиений.
  */
 public class Main implements POP3Defines {
+    /**
+     * Поток логиирования сессии.
+     */
     private static LogThread logThread;
+    /**
+     * Список потоков с подключёныыми клиентами.
+     */
     private static List<ConnectionThread> threadList;
+    /**
+     * Показывает статус сервера.
+     */
     private static boolean isRunning = true;
 
     /**
