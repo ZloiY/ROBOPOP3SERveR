@@ -81,7 +81,7 @@ public class LogThread extends Thread implements POP3Defines {
      */
     private void checkForPaused() {
         synchronized (MONITOR) {
-            while (pauseThreadFlag) {
+            if (pauseThreadFlag) {
                 try {
                     MONITOR.wait();
                 } catch (Exception e) {

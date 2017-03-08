@@ -60,22 +60,20 @@ public class POP3Letter implements POP3Defines {
         status = nStatus;
         this.letterDir = letterDir;
         MessageAssembler assembler = new MessageAssembler();
-        mimeMessage = assembler.assembleFromFiles(letterDir);
-        header = mimeMessage.getHeader().toString();
-        try (ByteArrayOutputStream baoStream = new ByteArrayOutputStream()) {
-            DefaultMessageWriter writer = new DefaultMessageWriter();
-            writer.writeMessage(mimeMessage, baoStream);
-            size = baoStream.size();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        try {
+        mimeMessage = assembler.assemble(letterDir);
+        if (mimeMessage != null) {
+            header = mimeMessage.getHeader().toString();
+            try (ByteArrayOutputStream baoStream = new ByteArrayOutputStream()) {
+                DefaultMessageWriter writer = new DefaultMessageWriter();
+                writer.writeMessage(mimeMessage, baoStream);
+                size = baoStream.size();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
             text = assembler.getText();
             attachments = assembler.getAttachments();
-        } catch (NullPointerException e) {
-            e.printStackTrace();
+            uniqueId = assembler.getUniqueId();
         }
-        uniqueId = letterDir.getName();
     }
 
     /**
